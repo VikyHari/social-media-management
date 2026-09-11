@@ -84,9 +84,8 @@ check `docker compose ps` first.
 ## Git
 
 Branch: main
-Last commit: `e22f911` "docs: close AI client module task, point current-task at creator onboarding"
-(creator onboarding module is implemented and tested but NOT YET committed — see Next Recommended Action)
-Last push: SUCCESS (as of `e22f911`)
+Last commit: `605ebcd` "feat: add creator onboarding interview and structured profile"
+Last push: SUCCESS — origin/main up to date with local main.
 Remote: https://github.com/VikyHari/social-media-management.git
 
 ## Next Recommended Action
