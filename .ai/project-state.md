@@ -79,9 +79,8 @@ live once the user has added any one platform's credentials.
 ## Git
 
 Branch: main
-Last commit: `bb1c43b` "fix: CI has been failing on every push since the workflow was added (BUG #003)"
-(the Instagram correction + README setup guide is implemented and tested but NOT YET committed)
-Last push: SUCCESS (as of `bb1c43b`)
+Last commit: `c1a35de` "fix: Instagram used the wrong OAuth flow; write real account-setup guide (BUG #004)"
+Last push: SUCCESS — origin/main up to date with local main.
 Remote: https://github.com/VikyHari/social-media-management.git
 
 ## Next Recommended Action
