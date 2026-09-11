@@ -4,11 +4,12 @@ Inspect only the module you are working on.
 
 ## lib/ (shared infrastructure)
 
-Purpose: env, db client, JSON API helpers, rate limiting, audit log.
+Purpose: env, db client, JSON API helpers, rate limiting, audit log, encryption, signed tokens.
 Files: `env.ts`, `db.ts`, `api.ts` (parseJsonBody/apiErrorResponse), `rate-limit.ts` (in-memory,
-single-process only), `audit.ts` (recordAuditLog/getClientIp) — all under `src/lib/`, each with a
-`.test.ts`.
-Status: DONE. Reused by modules/auth; expected to be reused by every future module.
+single-process only), `audit.ts` (recordAuditLog/getClientIp), `crypto.ts` (AES-256-GCM
+encryptSecret/decryptSecret via TOKEN_ENCRYPTION_KEY), `signed-token.ts` (generic signed
+short-lived opaque tokens, HMAC via SESSION_SECRET) — all under `src/lib/`, each with a `.test.ts`.
+Status: DONE. Reused across modules/auth, modules/integrations; expected to be reused further.
 
 ## app/ (routes)
 
@@ -72,9 +73,35 @@ NOT live-tested against the real Claude API — ANTHROPIC_API_KEY is unset in th
 
 ## modules/integrations/
 
-Purpose: OAuth + ingestion per platform (instagram/, facebook/, youtube/).
-DB: social_accounts, platform_metrics
-Status: PENDING (Phase 2)
+Purpose: connect Instagram/Facebook/YouTube via official OAuth only (Part 25/45 — no scraping, no
+password capture). Metrics _ingestion_ (writing PlatformMetric rows from the connected accounts)
+is a separate, later task — this module only gets an account connected and stores its token.
+Files: `types.ts` (`Platform`, `ProviderAdapter` — the seam `service.ts` orchestrates against so
+it never needs to know which provider it's talking to), `errors.ts`, `repository.ts`
+(`upsertAccount`/`listAccounts` — list SELECTs never include the encrypted token columns),
+`meta.ts` (Instagram + Facebook share ONE Meta app/OAuth flow — Instagram has no separate OAuth of
+its own; accounts are discovered via linked Facebook Pages), `service.ts` (`initiateConnection`/
+`completeConnection`/`disconnectAccount` — signs/verifies OAuth CSRF state, encrypts tokens before
+they ever reach the DB, audit-logs connect/disconnect), `index.ts`.
+Shared infra this leans on (`src/lib/`): `crypto.ts` (AES-256-GCM via `TOKEN_ENCRYPTION_KEY`),
+`signed-token.ts` (generic signed short-lived tokens — OAuth state today, reusable for e.g. email
+verification later).
+Routes: `GET /api/integrations` (list, never returns tokens), `GET /api/integrations/[platform]/start`
+(redirects to the provider's consent screen), `GET /api/integrations/[platform]/callback`
+(exchanges the code, redirects home with a status query param — no dedicated integrations page
+exists yet), `DELETE /api/integrations/accounts/[accountId]` (disconnect, Part 52). Note the
+`accounts/[accountId]` nesting: Next.js forbids two different dynamic segment _names_
+(`[platform]` vs `[accountId]`) as siblings at the same path depth.
+DB: social_accounts, platform_metrics (migration `20260911081710_social_connections`).
+Status: Instagram + Facebook DONE (one Meta app covers both). YouTube (Google OAuth) NOT built —
+`getAdapter("youtube")` throws a clear "not connectable yet" error; it's the natural next task
+(`google.ts`, mirroring `meta.ts`'s shape). 21 tests (Meta adapter against a mocked `fetch`;
+service layer against a mocked adapter + the real DB; HTTP route wiring). Verified live via
+`npm run dev`: auth-required checks, empty list, and — since no Meta app is registered in this
+environment — the MISSING_CREDENTIALS error path, all confirmed correct through the real server.
+**Not live-verified against a real Meta app** — `META_APP_ID`/`META_APP_SECRET` are unset; exact
+Graph API version/scopes (`meta.ts` top comment) should be checked against Meta's current docs
+before this ever runs for real. Same honesty standard as modules/ai without a Claude key.
 
 ## modules/analytics/
 

@@ -4,95 +4,101 @@
 
 ## Phase
 
-PHASE 1 — CREATOR INTELLIGENCE (auth, AI client, onboarding interview + profile all done)
+PHASE 2 — SOCIAL CONNECTION (Meta/Instagram+Facebook OAuth scaffolding done; YouTube next)
 
 ## Current Sprint
 
-Phase 1 core is functionally complete. Remaining Phase 1 items (niche/audience analysis as
-dedicated features) are lower priority than starting Phase 2 (social connection) — see Next.
+Phase 2: Instagram + Facebook OAuth (done) → YouTube OAuth → metrics ingestion + sync scheduler.
 
 ## Completed
 
-- **Phase 0 (foundation):** Next.js 16 + TS + Tailwind v4 + ESLint 9 + Prettier scaffold; PostgreSQL
-  16 via Docker (port 5440) + Prisma 7; Zod-validated env; GitHub Actions CI; `.ai/` project memory.
-- **`src/modules/auth`:** signup, login, logout, session validation. bcrypt hashing, HMAC-hashed
-  opaque session tokens, DB sessions (30-day expiry), httpOnly/Lax cookie, rate limiting, audit log.
-  Routes: `POST /api/auth/{signup,login,logout}`, `GET /api/auth/me`.
-- **`src/modules/ai`:** the only module allowed to call `@anthropic-ai/sdk` directly (D-005).
-  `generateStructured<T>()` forces a Zod-schema-shaped tool call, validates, retries once on
-  failure (D-009). `pricing.ts` never fabricates cost numbers — returns null until real rates are
-  configured (D-010). Generic `AiConversation`/`AiMessage` storage (tagged by `purpose`) and
-  `AiUsageLog` usage tracking, reusable by any feature that talks to Claude.
-- **`src/modules/creator`:** adaptive onboarding interview (Part 23) built on `modules/ai`.
-  - `interview.ts` — each turn forces `interviewTurnSchema` (next question + a
-    `readyToExtractProfile` flag the model sets itself); once ready, a second forced-tool call
-    extracts a full `creatorProfileExtractionSchema` (Part 24 fields + 1-8 goals) from the whole
-    transcript. Ownership is checked on every continue call (a conversation only answers to the
-    user who started it). Re-running onboarding **upserts** the existing profile rather than
-    duplicating it.
-  - New Prisma models (migration `20260911075752_creator_intelligence`): `CreatorProfile` (1:1
-    with User, linked back to its source `AiConversation` for provenance), `Goal`.
-  - Routes: `POST /api/creator/onboarding` (start), `PATCH /api/creator/onboarding` (continue),
-    `GET /api/creator/profile`.
-  - The interview's system prompt already does a light version of Part 41 ("AI should challenge
-    the user") — it's told to push back on scattered niches or unrealistic goals rather than just
-    agreeing. A dedicated "niche analysis" / "audience analysis" feature is NOT built (see Next).
-- **Testing:** 53 tests across 12 files (unit + real-DB integration + HTTP route tests), run 3x for
-  determinism every time. `npm run build` succeeds; all new routes register correctly.
-- **Fixed BUG #002** (Vitest env loading / cross-test-file `process.env` pollution) — see
-  `.ai/known-issues.md`.
+- **Phase 0 (foundation) + Phase 1 (auth, AI client, onboarding interview + creator profile):**
+  see git history / earlier `.ai/` state for full detail — all done, tested, pushed.
+- **`src/modules/integrations`:** official-OAuth-only social account connection (Part 25/45).
+  - `types.ts` — `Platform` (`instagram`/`facebook`/`youtube`), `ProviderAdapter` interface
+    (`buildAuthorizationUrl`/`exchangeCode`/`discoverAccounts`) that `service.ts` orchestrates
+    against without knowing which provider it's talking to (D-012).
+  - `meta.ts` — Instagram + Facebook share ONE Meta app/OAuth flow (D-011): Instagram has no
+    separate OAuth, IG Business accounts are discovered via their linked Facebook Page. Two-hop
+    token exchange (short-lived → long-lived, ~60 day). Injectable `fetch` for testing.
+  - `service.ts` — `initiateConnection` (signs OAuth CSRF state via `src/lib/signed-token.ts`),
+    `completeConnection` (verifies state, exchanges code, encrypts the token via
+    `src/lib/crypto.ts` AES-256-GCM before it ever reaches the DB, upserts one `SocialAccount` row
+    per discovered account, audit-logs each), `disconnectAccount` (ownership-checked, Part 52).
+  - New shared `src/lib/` infra: `crypto.ts` (encrypt/decrypt secrets), `signed-token.ts` (generic
+    signed short-lived tokens — used for OAuth state, reusable elsewhere later).
+  - New Prisma models (migration `20260911081710_social_connections`): `SocialAccount`,
+    `PlatformMetric` (schema only — ingestion that writes real rows is a separate later task).
+  - Routes: `GET /api/integrations` (list, never returns tokens), `GET
+/api/integrations/[platform]/start` (redirect to consent screen), `GET
+/api/integrations/[platform]/callback` (completes the connection, redirects home),
+    `DELETE /api/integrations/accounts/[accountId]` (disconnect).
+  - 21 new tests: Meta adapter (mocked `fetch` — URL construction, two-hop token exchange, Page/IG
+    discovery filtering, Graph API error handling), service layer (mocked adapter + real DB — state
+    verification incl. cross-user rejection, token encryption round-trip, audit logging, ownership),
+    HTTP route wiring (auth-required checks, empty list, the MISSING_CREDENTIALS error path).
+  - Verified live via `npm run dev`: health, auth-required 401s, empty account list, and — since no
+    Meta app is registered here — the clear "META_APP_ID / META_APP_SECRET are not set" error, all
+    confirmed through the real running server.
+  - **NOT live-verified against a real Meta app.** No `META_APP_ID`/`META_APP_SECRET` configured.
+    `meta.ts`'s Graph API version and exact scopes are flagged in-code as needing a check against
+    Meta's current docs before this runs for real (same honesty standard as modules/ai, D-013).
+  - YouTube (Google OAuth) is NOT built. `getAdapter("youtube")` throws a clear "not connectable
+    yet" error rather than pretending. This is the next task.
+- **Testing:** 80 tests across 17 files, run 3x for determinism every time. `npm run build`
+  succeeds; all 12 API routes register correctly, including the `accounts/[accountId]` nesting
+  needed to avoid a Next.js dynamic-route-name conflict with `[platform]`.
 
 ## In Progress
 
-(none — creator onboarding module fully done)
+(none — Instagram/Facebook OAuth scaffolding fully done)
 
 ## Next
 
-Two independent directions, pick by priority (Part 17: core user journey > nice-to-have):
+`src/modules/integrations/google.ts`: YouTube OAuth (Google), mirroring `meta.ts`'s shape against
+the same `ProviderAdapter` interface — Google's OAuth 2.0 authorization endpoint, token exchange
+(with a real refresh token, unlike Meta's long-lived-token approach), and channel discovery via the
+YouTube Data API. Wire it into `service.ts`'s `getAdapter()`. Needs `GOOGLE_CLIENT_ID`/
+`GOOGLE_CLIENT_SECRET` to live-verify (same gap as Meta — build and mock-test regardless).
 
-1. **Phase 2 — Social connection** (Instagram/Facebook/YouTube OAuth + metrics ingestion). This is
-   the next major capability the product needs — analytics/content phases depend on real account
-   data existing. Needs `META_APP_ID`/`META_APP_SECRET` (Instagram+Facebook, one Meta app) and
-   `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (YouTube) — all currently blank in `.env`. Setting up
-   each requires the user to register a developer app on Meta/Google (Part 67: platform requires
-   manual developer approval) — this **will need to be done by the user**, not something I can
-   provision. I can build the OAuth flow, token storage (encrypted, `TOKEN_ENCRYPTION_KEY` already
-   provisioned since Phase 0), and ingestion scaffolding without real credentials, the same way
-   `modules/ai` was built and tested without a real Claude key — but nothing will actually connect
-   until real app credentials exist.
-2. **Live-verify `modules/ai` + `modules/creator`** once `ANTHROPIC_API_KEY` is added to `.env`.
-   Everything is unit-tested against a mocked client; a real end-to-end onboarding run has never
-   happened. Cheap to do (one `.env` line + a manual `npm run dev` smoke test) whenever a key is
-   available — does not block other work.
+After all three platforms connect: metrics ingestion (the part that actually calls each platform's
+insights/analytics API and writes `PlatformMetric` rows) + a sync scheduler — this is real,
+substantial work of its own, deliberately not bundled into the OAuth scaffolding task.
 
 ## Known Issues
 
 None open. See `.ai/known-issues.md` for resolved history (BUG #001 git push access, BUG #002
 Vitest env loading / test cross-contamination).
 
-**Still true, not a bug:** `ANTHROPIC_API_KEY` is unset — `modules/ai` and `modules/creator` are
-built and thoroughly unit/integration-tested with a mocked Claude client, but have never made a
-real API call.
+**Still true, not bugs — pending user action:**
+
+- `ANTHROPIC_API_KEY` unset. modules/ai and modules/creator are fully mock-tested but have never
+  made a real Claude call. The user has said they'll add it; check `.env` before assuming it's
+  still missing in a future session.
+- `META_APP_ID`/`META_APP_SECRET`/`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` unset. Needed to
+  live-verify modules/integrations; the user needs to register apps with Meta and Google first
+  (Part 67 — manual developer approval, cannot be done by the agent).
 
 ## Last Tested
 
-2026-09-11 — full suite: format:check, lint, typecheck, `npm test` (53/53, run 3x for determinism),
-`npm run build`. Docker Desktop was not running at the start of this session (needed a manual
-restart before migrations/DB tests could run) — if a future session hits DB connection errors,
-check `docker compose ps` first.
+2026-09-11 — full suite: format:check, lint, typecheck, `npm test` (80/80, run 3x for determinism),
+`npm run build`, plus a live `npm run dev` smoke test of every integrations route (auth checks,
+empty list, missing-credentials error) and, earlier in the session, of every auth route.
 
 ## Git
 
 Branch: main
-Last commit: `605ebcd` "feat: add creator onboarding interview and structured profile"
-Last push: SUCCESS — origin/main up to date with local main.
+Last commit: `e44519c` "docs: record creator module push success"
+(integrations module is implemented and tested but NOT YET committed — see Next Recommended Action)
+Last push: SUCCESS (as of `e44519c`)
 Remote: https://github.com/VikyHari/social-media-management.git
 
 ## Next Recommended Action
 
-1. Commit and push the creator onboarding module (`src/modules/creator/**`,
-   `src/app/api/creator/**` + tests, `prisma/schema.prisma` +
-   `prisma/migrations/20260911075752_creator_intelligence/`).
-2. Decide between the two "Next" directions above, or do both in parallel: start Phase 2 (OAuth
-   scaffolding, no real credentials needed yet) while asking the user for an `ANTHROPIC_API_KEY`
-   and, when ready to actually build Phase 2 end-to-end, Meta + Google OAuth app credentials.
+1. Commit and push the integrations module (`src/modules/integrations/**`, `src/app/api/integrations/**`,
+   `src/lib/crypto.ts` + `src/lib/signed-token.ts` (+ tests), `prisma/schema.prisma` +
+   `prisma/migrations/20260911081710_social_connections/`).
+2. Build `src/modules/integrations/google.ts` (YouTube) the same way — see "Next" above.
+3. Check `.env` for `ANTHROPIC_API_KEY` before assuming it's still missing; if present, run a live
+   onboarding smoke test (`npm run dev`, sign up, `POST /api/creator/onboarding`, a few
+   `PATCH` turns) to finally verify modules/ai + modules/creator end to end.

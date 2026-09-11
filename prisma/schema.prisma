@@ -28,6 +28,7 @@ model User {
   aiUsageLogs     AiUsageLog[]
   creatorProfile  CreatorProfile?
   goals           Goal[]
+  socialAccounts  SocialAccount[]
 
   @@map("users")
 }
@@ -190,4 +191,64 @@ model Goal {
 
   @@index([userId, status])
   @@map("goals")
+}
+
+// ---------------------------------------------------------------------------
+// Social platform connections (Phase 2). Official OAuth only (Part 25/45) —
+// no scraping, no password capture. Tokens are encrypted at rest
+// (src/lib/crypto.ts, AES-256-GCM, TOKEN_ENCRYPTION_KEY); this schema never
+// stores a plaintext token. Metrics ingestion (writing PlatformMetric rows)
+// is a separate, later task — these tables exist now so the connection flow
+// has somewhere real to write to.
+// ---------------------------------------------------------------------------
+
+model SocialAccount {
+  id     String @id @default(uuid())
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// "instagram" | "facebook" | "youtube" — enforced by Zod at the input boundary.
+  platform String
+
+  /// The platform's id for the connected asset (IG/FB Page id, YouTube channel id).
+  externalAccountId   String  @map("external_account_id")
+  externalAccountName String? @map("external_account_name")
+
+  accessTokenEncrypted  String  @map("access_token_encrypted")
+  refreshTokenEncrypted String? @map("refresh_token_encrypted")
+  scopes                String[]
+  tokenExpiresAt        DateTime? @map("token_expires_at")
+
+  /// "connected" | "expired" | "revoked" | "error" — enforced by Zod at the input boundary.
+  status       String  @default("connected")
+  lastError    String? @map("last_error")
+  lastSyncedAt DateTime? @map("last_synced_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  metrics PlatformMetric[]
+
+  @@unique([userId, platform, externalAccountId])
+  @@index([userId])
+  @@map("social_accounts")
+}
+
+/// One OBSERVED metric value for one connected account on one day (Part 26/57).
+/// Always raw platform data — CALCULATED/INFERRED/PREDICTED values belong to
+/// their own table once the analytics module (Phase 3) exists; never mixed in here.
+model PlatformMetric {
+  id              String        @id @default(uuid())
+  socialAccountId String        @map("social_account_id")
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  metricDate DateTime @map("metric_date")
+  metricType String   @map("metric_type")
+  value      Float
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([socialAccountId, metricDate, metricType])
+  @@index([socialAccountId, metricDate])
+  @@map("platform_metrics")
 }

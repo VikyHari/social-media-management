@@ -29,3 +29,16 @@ Format: `D-### · date · decision · why · consequences`
   ships with an empty pricing table and returns `null` until real per-model USD rates are filled
   in from Anthropic's pricing page. Token counts (`AiUsageLog.inputTokens`/`outputTokens`) are
   always the real, observed numbers from the API response and are the source of truth until then.
+- **D-011 · 2026-09-11 · Instagram and Facebook are one provider (Meta), not two.** The Instagram
+  Graph API has no OAuth of its own — access comes through Facebook Login against a single Meta
+  app, and IG Business accounts are discovered via the Facebook Page they're linked to.
+  `src/modules/integrations/meta.ts` implements both `platform`s off one OAuth mechanism.
+- **D-012 · 2026-09-11 · Provider-agnostic orchestration via a `ProviderAdapter` interface.**
+  `src/modules/integrations/service.ts` never imports a provider SDK directly; it calls
+  `buildAuthorizationUrl`/`exchangeCode`/`discoverAccounts` on whichever adapter `getAdapter()`
+  returns. Adding YouTube means writing `google.ts` against the same interface, not touching
+  `service.ts`.
+- **D-013 · 2026-09-11 · Build unverifiable integrations honestly, the same way as modules/ai.**
+  OAuth code against Meta/Google is written and unit-tested (mocked `fetch`/mocked adapter) without
+  real app credentials, exactly like `generateStructured` was built without a real Claude key
+  (D-005 era). `.ai/` records plainly what has and hasn't been exercised against the real API.

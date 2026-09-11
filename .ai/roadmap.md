@@ -28,12 +28,12 @@ Legend: [x] done · [~] in progress · [ ] pending
 
 ## PHASE 2 — SOCIAL CONNECTION
 
-- [ ] Encrypted token storage
-- [ ] Instagram OAuth (Meta Graph API)
-- [ ] Facebook OAuth (Meta Graph API)
-- [ ] YouTube OAuth (Google)
+- [x] Encrypted token storage
+- [x] Instagram OAuth (Meta Graph API) — built, not live-verified (no META_APP_ID yet)
+- [x] Facebook OAuth (Meta Graph API) — built, not live-verified (no META_APP_ID yet)
+- [ ] YouTube OAuth (Google) — next task, mirrors meta.ts
 - [ ] Metrics ingestion + sync scheduler
-- [ ] Connection status / disconnect flow
+- [x] Connection status / disconnect flow
 
 ## PHASE 3 — ANALYTICS
 
