@@ -11,10 +11,10 @@ Legend: [x] done · [~] in progress · [ ] pending
 - [x] Env validation + `.env.example`
 - [x] Prettier / Vitest / CI
 - [x] `.ai/` project memory
-- [~] Prisma schema + first migration
-- [~] Health endpoint (app + DB)
-- [ ] CLAUDE.md + README
-- [ ] First commit + push
+- [x] Prisma schema + first migration
+- [x] Health endpoint (app + DB)
+- [x] CLAUDE.md + README
+- [x] First commit + push
 
 ## PHASE 1 — CREATOR INTELLIGENCE
 

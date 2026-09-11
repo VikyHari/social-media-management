@@ -4,11 +4,11 @@
 
 ## Phase
 
-PHASE 0 — FOUNDATION (code complete, verified locally; blocked on git push access)
+PHASE 0 — FOUNDATION: COMPLETE. Starting PHASE 1 — CREATOR INTELLIGENCE.
 
 ## Current Sprint
 
-Project foundation: scaffold, database, tooling, CI, AI project memory.
+Phase 1: authentication, AI client module, creator onboarding interview, creator profile.
 
 ## Completed
 
@@ -26,21 +26,26 @@ Project foundation: scaffold, database, tooling, CI, AI project memory.
 - Verified locally: `npm run lint` ✓, `npm run typecheck` ✓, `npm test` ✓ (5/5), `npm run format:check` ✓,
   `npm run build` ✓, `npm run dev` serves `/` (200) and `/api/health` returns
   `{"status":"ok","db":"ok"}` with a live PostgreSQL connection.
-- Git: staged, secret-scanned, committed as `da2c812`.
+- Git: 2 commits pushed to `origin/main` (`da2c812` foundation, `8c785e6` docs). BUG #001
+  (push access) resolved — see `.ai/known-issues.md`.
 
 ## In Progress
 
-- Nothing — Phase 0 build is done. Push is blocked, see Known Issues BUG #001.
+(none — Phase 0 fully done)
 
 ## Next
 
-- Resolve BUG #001 (push access), then push `da2c812` to `origin/main`.
-- PHASE 1: authentication (email + password, DB sessions) -> AI client module -> creator onboarding
-  interview -> creator profile -> goals -> niche/audience analysis.
+1. `src/modules/auth`: User signup/login, bcrypt password hashing, DB-backed sessions (httpOnly
+   cookie), logout. Extends the existing `User`/`Session` Prisma models.
+2. `src/modules/ai`: Claude client wrapper (`@anthropic-ai/sdk`), structured-output helper
+   (Zod-validated), usage/cost logging. No feature should call the SDK directly.
+3. `src/modules/creator`: adaptive onboarding interview + structured creator profile
+   (niche, audience, goals, platforms, content style, equipment, budget, time). Uses the AI module.
+4. Update Prisma schema incrementally per module (creator_profiles, goals, ai_conversations, ai_memory).
 
 ## Known Issues
 
-See `.ai/known-issues.md`. Open: BUG #001 (push denied, 403).
+None open. See `.ai/known-issues.md` for resolved history.
 
 ## Last Tested
 
@@ -50,13 +55,11 @@ against `/` and `/api/health` all passed.
 ## Git
 
 Branch: main
-Last commit: `da2c812` "feat: initialize AI Creator Growth Manager foundation" (local, 34 files)
-Last push: FAILED — 403 Permission denied (see BUG #001)
+Last commit: `8c785e6` "docs: record git push access blocker (BUG #001)"
+Last push: SUCCESS — origin/main up to date with local main.
 Remote: https://github.com/VikyHari/social-media-management.git
-Local git identity: vigneshAvironix12 <vigneshwar@avironix.com>
 
 ## Next Recommended Action
 
-BLOCKED on push access (BUG #001) — needs the user to grant access, point the remote at a repo
-they can push to, or re-authenticate git with an account that has write access. Everything else in
-Phase 0 is done and verified locally. Once push succeeds, start Phase 1 (authentication module).
+Start Phase 1 with `src/modules/auth` (signup/login/session), since every later module (creator
+profile, AI conversations, social account connections) needs a logged-in user to attach data to.

@@ -16,8 +16,8 @@ Status: shell only.
 ## modules/auth/
 
 Purpose: users, sessions, login/logout, password hashing.
-DB: users, sessions
-Status: PENDING (Phase 1)
+DB: users, sessions (models exist in prisma/schema.prisma since Phase 0)
+Status: IN PROGRESS (Phase 1) — see .ai/current-task.md
 
 ## modules/creator/
 

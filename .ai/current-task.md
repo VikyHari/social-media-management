@@ -2,34 +2,38 @@
 
 ## Task
 
-Finish PHASE 0 foundation.
+Phase 1, step 1: authentication (`src/modules/auth`).
 
 ## Type
 
-Configuration / Architecture
+New feature
 
 ## Target module
 
-lib/, prisma/, app/api/health
+`src/modules/auth` (new). Touches `prisma/schema.prisma` (User/Session already exist), `src/lib/`.
 
 ## Relevant files
 
-- prisma/schema.prisma, prisma.config.ts
-- src/lib/db.ts
-- src/app/api/health/route.ts
-- package.json (scripts)
-- CLAUDE.md, README.md
+- prisma/schema.prisma (User, Session models already defined — reuse, don't redesign)
+- src/lib/db.ts, src/lib/env.ts (existing — reuse)
+- src/modules/auth/service.ts, repository.ts, session.ts (new)
+- src/app/api/auth/signup/route.ts, src/app/api/auth/login/route.ts, src/app/api/auth/logout/route.ts (new)
 
 ## Constraints
 
-- Smallest correct change; no features before the foundation runs.
-- No secrets in tracked files.
+- Passwords hashed with bcrypt (or argon2), never stored/logged in plain text.
+- Session token: random 32+ byte value; only its hash stored in `Session.tokenHash` (already modeled).
+- Cookie: httpOnly, SameSite=Lax, Secure in production.
+- Zod-validate all request input.
+- This is app login (email/password) — separate from Instagram/Facebook/YouTube OAuth (Phase 2),
+  which connects social accounts, not app identity. Do not conflate the two.
 
 ## Expected result
 
-`npm run dev` serves `/` and `/api/health` reports `{ status: "ok", db: "ok" }`.
-Lint, typecheck, tests, build pass. First commit pushed to origin/main.
+A user can sign up, log in, hit an authenticated route, and log out; sessions persist in Postgres
+and expire. Lint/typecheck/tests/build pass.
 
 ## Validation
 
-`npm run lint && npm run typecheck && npm test && npm run build`, then hit `/api/health`.
+`npm run lint && npm run typecheck && npm test && npm run build`, plus new unit/integration tests
+for signup/login/logout and session expiry.
