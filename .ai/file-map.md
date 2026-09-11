@@ -33,9 +33,22 @@ Status: PENDING (Phase 1)
 
 ## modules/ai/
 
-Purpose: Claude client, prompt templates, structured outputs, usage logging, ai_memory.
-DB: ai_conversations, ai_memory
-Status: PENDING (Phase 1)
+Purpose: the ONLY module allowed to call the Anthropic SDK directly (decisions.md D-005). Every
+other module gets structured, Zod-validated data out of Claude through this one.
+Files: `models.ts` (exact model IDs — D-005), `client.ts` (lazy singleton, throws AiError if
+ANTHROPIC_API_KEY unset), `structured.ts` (`generateStructured<T>()`: forces a tool call shaped by
+a Zod schema, validates, retries once with a corrective tool_result on failure), `pricing.ts`
+(cost estimate — table is deliberately empty/unverified, returns null until real Anthropic
+pricing is filled in; token counts are always accurate), `conversation.ts` + `repository.ts`
+(AiConversation/AiMessage — generic multi-turn history, tagged by `purpose`), `usage.ts`
+(AiUsageLog, never throws), `errors.ts`, `index.ts`.
+DB: ai_conversations, ai_messages, ai_usage_logs (added in migration `20260911065727_ai_engine`).
+`ai_memory` (long-term creator understanding, Part 62) intentionally NOT built yet — it belongs
+with modules/creator, which has something to write into it.
+Status: DONE — 45 tests total in the project (module's own: unit tests for pricing + structured
+mocked-client retry/error paths, integration tests for conversation/usage against the real DB).
+NOT live-tested against the real Claude API — ANTHROPIC_API_KEY is unset in this environment (see
+.ai/project-state.md). `npm run build` confirms the module needs no key at build time (lazy client).
 
 ## modules/integrations/
 

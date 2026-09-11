@@ -20,3 +20,12 @@ Format: `D-### · date · decision · why · consequences`
   not require secrets; CI supplies dummy values.
 - **D-008 · 2026-09-11 · Project memory in `.ai/`.** `project-state.md` is the source of truth
   read before any task; targeted file inspection instead of repo-wide reads.
+- **D-009 · 2026-09-11 · Structured LLM output via forced tool-use, not free-text JSON parsing.**
+  `src/modules/ai/structured.ts` builds a `Tool.input_schema` from the caller's Zod schema
+  (`z.toJSONSchema`), forces that tool with `tool_choice`, and validates the result — one
+  corrective retry via a `tool_result` block if validation fails, then throws. Reinforces D-006:
+  nothing downstream ever trusts unvalidated model output.
+- **D-010 · 2026-09-11 · AI cost estimates are never fabricated.** `src/modules/ai/pricing.ts`
+  ships with an empty pricing table and returns `null` until real per-model USD rates are filled
+  in from Anthropic's pricing page. Token counts (`AiUsageLog.inputTokens`/`outputTokens`) are
+  always the real, observed numbers from the API response and are the source of truth until then.

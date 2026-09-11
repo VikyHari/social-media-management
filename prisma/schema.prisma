@@ -22,8 +22,10 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  sessions  Session[]
-  auditLogs AuditLog[]
+  sessions        Session[]
+  auditLogs       AuditLog[]
+  aiConversations AiConversation[]
+  aiUsageLogs     AiUsageLog[]
 
   @@map("users")
 }
@@ -57,4 +59,64 @@ model AuditLog {
 
   @@index([userId, createdAt])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// AI engine (Phase 1) — generic, reusable across every feature that talks to
+// Claude: onboarding interview, later ad-hoc creator chat, content generation.
+// Domain-specific data (e.g. the derived creator profile) lives in its own
+// module and its own tables; this is just "what was said and what it cost".
+// ---------------------------------------------------------------------------
+
+/// A multi-turn exchange with Claude, tagged by `purpose` (e.g. "onboarding",
+/// "chat", "content.script") so callers can filter their own conversations.
+model AiConversation {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose   String
+  title     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  messages  AiMessage[]
+  usageLogs AiUsageLog[]
+
+  @@index([userId, purpose])
+  @@map("ai_conversations")
+}
+
+/// One turn in an AiConversation.
+model AiMessage {
+  id             String         @id @default(uuid())
+  conversationId String         @map("conversation_id")
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String
+  content        String
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  @@index([conversationId, createdAt])
+  @@map("ai_messages")
+}
+
+/// One Claude API call. Token counts are OBSERVED (straight from the API
+/// response); estimatedCostUsd is CALCULATED from a pricing table that needs
+/// verification against Anthropic's current pricing before being trusted for
+/// real budgeting — see src/modules/ai/pricing.ts.
+model AiUsageLog {
+  id               String          @id @default(uuid())
+  userId           String          @map("user_id")
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId   String?         @map("conversation_id")
+  conversation     AiConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  purpose          String
+  model            String
+  inputTokens      Int             @map("input_tokens")
+  outputTokens     Int             @map("output_tokens")
+  estimatedCostUsd Float?          @map("estimated_cost_usd")
+  latencyMs        Int             @map("latency_ms")
+  createdAt        DateTime        @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@map("ai_usage_logs")
 }

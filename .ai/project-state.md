@@ -4,70 +4,90 @@
 
 ## Phase
 
-PHASE 1 — CREATOR INTELLIGENCE (auth done, AI client module next)
+PHASE 1 — CREATOR INTELLIGENCE (auth done, AI client module done, onboarding interview next)
 
 ## Current Sprint
 
-Phase 1: authentication (done) → AI client module → creator onboarding interview → creator profile.
+Phase 1: authentication (done) → AI client module (done) → creator onboarding interview → creator
+profile.
 
 ## Completed
 
 - **Phase 0 (foundation):** Next.js 16 + TS + Tailwind v4 + ESLint 9 + Prettier scaffold; PostgreSQL
   16 via Docker (port 5440) + Prisma 7; Zod-validated env; GitHub Actions CI; `.ai/` project memory;
   pushed to `origin/main`.
-- **Phase 1 — `src/modules/auth`:** signup, login, logout, session validation.
-  - bcrypt password hashing (`password.ts`, 12 salt rounds, 72-char cap to match bcrypt's limit)
-  - Opaque random session tokens; only an HMAC (keyed by `SESSION_SECRET`) is stored as
-    `Session.tokenHash` (`tokens.ts`) — a leaked DB alone can't mint valid cookies
-  - DB-backed sessions, 30-day expiry, httpOnly/SameSite=Lax/Secure-in-prod cookie (`cookie.ts`)
-  - Zod input validation (`schemas.ts`); same generic error for wrong-password vs. no-such-user
-    (no email enumeration via login)
-  - Audit log entries for signup/login/logout (`src/lib/audit.ts`, reusable by later modules)
-  - Per-IP rate limiting on signup/login (`src/lib/rate-limit.ts`, in-memory — see limitation below)
-  - Routes: `POST /api/auth/{signup,login,logout}`, `GET /api/auth/me`
-  - Shared helpers added to `src/lib/`: `api.ts` (parseJsonBody/apiErrorResponse), `rate-limit.ts`,
-    `audit.ts` — all reusable by every future module, not auth-specific
-  - Tests: 36 passing across 7 files — unit tests (password, tokens, rate-limit, api helper) +
-    integration tests against the real local Postgres (service layer + actual HTTP route handlers)
-  - Verified live via `npm run dev`: signup(201) → me(200) → logout(200) → me(401) → login(200) →
-    duplicate signup(409), cookie attributes confirmed (httpOnly, 30d, Secure=false in dev), audit
-    log rows confirmed (`auth.signup`, `auth.login`, `auth.logout`)
-  - No Prisma migration needed — User/Session models already existed from Phase 0
+- **`src/modules/auth`:** signup, login, logout, session validation. bcrypt hashing, HMAC-hashed
+  opaque session tokens, DB sessions (30-day expiry), httpOnly/Lax cookie, rate limiting, audit log.
+  Routes: `POST /api/auth/{signup,login,logout}`, `GET /api/auth/me`. 36 tests; verified live via
+  `npm run dev` (full signup/login/logout/me flow, cookie flags, audit rows all confirmed).
+- **`src/modules/ai`:** the only module allowed to call `@anthropic-ai/sdk` directly (D-005).
+  - `client.ts` — lazy Anthropic client singleton (mirrors `src/lib/db.ts`); throws a clear
+    `AiError("MISSING_API_KEY")` at first real use if `ANTHROPIC_API_KEY` is unset (it is, in this
+    dev environment — see Known Issues below).
+  - `structured.ts` — `generateStructured<T>()`: converts a Zod schema to a JSON schema
+    (`z.toJSONSchema`), forces Claude to call a matching tool, Zod-validates the result, and does
+    one corrective retry (via a `tool_result` block explaining what was wrong) before throwing
+    `AiError("INVALID_OUTPUT")`. This is how every future module must get structured data out of
+    Claude — never parse free-form text as JSON (D-009).
+  - `pricing.ts` — `estimateCostUsd()` returns `null` until real per-model USD rates are filled in;
+    no invented numbers presented as fact (D-010). Token counts are always the real API numbers.
+  - `conversation.ts`/`repository.ts` — generic multi-turn conversation storage (`AiConversation`,
+    `AiMessage`), tagged by `purpose` (e.g. "onboarding"), reusable by any AI feature.
+  - `usage.ts` — logs every call to `AiUsageLog` (tokens, latency, cost estimate); never throws.
+  - New Prisma models (migration `20260911065727_ai_engine`): `AiConversation`, `AiMessage`,
+    `AiUsageLog`. `ai_memory` (Part 62, long-term creator understanding) deliberately not built yet
+    — belongs with `modules/creator`, which will be its first writer/reader.
+  - 9 new tests (pricing unit test; structured-output unit tests against a mocked client covering
+    success/retry-then-success/fail-twice/no-tool-call/transport-error; conversation + usage
+    integration tests against the real DB) — 45 tests total in the project, run 3x for determinism.
+  - No API routes yet — this is infrastructure for `modules/creator` (next) to consume.
+  - **Not live-tested against the real Claude API** — no `ANTHROPIC_API_KEY` configured in this
+    environment. Unit tests use a mocked client instead; see Known Issues.
 
 ## In Progress
 
-(none — auth module fully done)
+(none — AI client module fully done)
 
 ## Next
 
-1. `src/modules/ai`: Claude client wrapper (`@anthropic-ai/sdk`), a structured-output helper
-   (prompt → Zod-validated typed result), usage/cost logging (`ai_conversations`/`ai_memory`
-   tables — new Prisma models needed). No other module should call the SDK directly.
-2. `src/modules/creator`: adaptive onboarding interview (uses modules/ai) + structured creator
-   profile (niche, audience, goals, platforms, content style, equipment, budget, time) +
-   `creator_profiles`/`goals` Prisma models. Requires a logged-in user (modules/auth).
+`src/modules/creator`: adaptive onboarding interview (uses `modules/ai`'s `generateStructured` +
+`conversation` APIs, `purpose: "onboarding"`) that progressively asks about niche, interests,
+skills, personality, content style, audience, goals, platforms, equipment, budget, time,
+experience, existing content, competitors, language, monetization (Part 23) — the AI should choose
+follow-ups dynamically, not ask a fixed script. Produces a structured `CreatorProfile` (Part 24) +
+`Goal` records. New Prisma models needed: `CreatorProfile`, `Goal`. Requires a logged-in user
+(`modules/auth`). Route(s) to start/continue/finish the interview under `/api/creator/onboarding`.
 
 ## Known Issues
 
-None open. See `.ai/known-issues.md` for resolved history (BUG #001 git push access, BUG #002
-Vitest env loading / test cross-contamination).
+**`ANTHROPIC_API_KEY` is not set.** AI features are built and unit-tested (mocked client) but have
+never made a real call to Claude. The onboarding interview (next task) will not actually function
+end-to-end without a real key. Not logged as a bug — this is expected/pending user action, not a
+defect. See "Next Recommended Action".
+
+None open in `.ai/known-issues.md`. See that file for resolved history (BUG #001 git push access,
+BUG #002 Vitest env loading / test cross-contamination).
 
 ## Last Tested
 
-2026-09-11 — full suite: format:check, lint, typecheck, `npm test` (36/36, run 3x for determinism),
-`npm run build`, and a live end-to-end smoke test of every auth route via `npm run dev` + curl.
+2026-09-11 — full suite: format:check, lint, typecheck, `npm test` (45/45, run 3x for determinism),
+`npm run build`. AI module verified only via mocked-client unit tests, not a live API call.
 
 ## Git
 
 Branch: main
-Last commit: `96effff` "docs: close Phase 0, resolve BUG #001, point Phase 1 at auth module"
-(auth module work is implemented and tested but NOT YET committed — see Next Recommended Action)
-Last push: SUCCESS (as of `96effff`)
+Last commit: `5b1057c` "feat: add authentication module (signup, login, logout, sessions)"
+(AI client module is implemented and tested but NOT YET committed — see Next Recommended Action)
+Last push: SUCCESS (as of `5b1057c`)
 Remote: https://github.com/VikyHari/social-media-management.git
 
 ## Next Recommended Action
 
-Commit and push the auth module (`src/modules/auth/**`, `src/app/api/auth/**`,
-`src/lib/{api,rate-limit,audit}.ts` + tests, `vitest.setup.ts`, `vitest.config.ts`), then start
-`src/modules/ai` (Claude client wrapper) — every subsequent module (creator onboarding, analytics
-interpretation, content generation) depends on it existing first.
+1. Commit and push the AI module (`src/modules/ai/**` + tests, `prisma/schema.prisma` +
+   `prisma/migrations/20260911065727_ai_engine/`).
+2. Ask the user for an `ANTHROPIC_API_KEY` (put it in `.env`, never commit it) so the module — and
+   the onboarding interview about to be built on top of it — can be live-verified, not just
+   mocked-tested. Not blocking: build `src/modules/creator` regardless, since its logic and tests
+   can proceed the same way `modules/ai` did (mocked client), and swap to a live smoke test once a
+   key is available.
+3. Start `src/modules/creator` (onboarding interview + creator profile).
