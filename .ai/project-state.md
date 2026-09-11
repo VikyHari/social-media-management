@@ -76,18 +76,14 @@ BUG #002 Vitest env loading / test cross-contamination).
 ## Git
 
 Branch: main
-Last commit: `5b1057c` "feat: add authentication module (signup, login, logout, sessions)"
-(AI client module is implemented and tested but NOT YET committed — see Next Recommended Action)
-Last push: SUCCESS (as of `5b1057c`)
+Last commit: `6705c17` "feat: add AI client module (Claude wrapper, structured output, usage log)"
+Last push: SUCCESS — origin/main up to date with local main.
 Remote: https://github.com/VikyHari/social-media-management.git
 
 ## Next Recommended Action
 
-1. Commit and push the AI module (`src/modules/ai/**` + tests, `prisma/schema.prisma` +
-   `prisma/migrations/20260911065727_ai_engine/`).
-2. Ask the user for an `ANTHROPIC_API_KEY` (put it in `.env`, never commit it) so the module — and
-   the onboarding interview about to be built on top of it — can be live-verified, not just
-   mocked-tested. Not blocking: build `src/modules/creator` regardless, since its logic and tests
-   can proceed the same way `modules/ai` did (mocked client), and swap to a live smoke test once a
-   key is available.
-3. Start `src/modules/creator` (onboarding interview + creator profile).
+1. Get an `ANTHROPIC_API_KEY` into `.env` (never commit it) so `modules/ai` — and the onboarding
+   interview about to be built on it — can be live-verified, not just mocked-tested. Not blocking:
+   `src/modules/creator` can be built and tested the same way `modules/ai` was (mocked client), and
+   switch to a live smoke test once a key is available.
+2. Start `src/modules/creator` (onboarding interview + creator profile). See `.ai/current-task.md`.
