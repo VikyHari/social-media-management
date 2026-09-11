@@ -80,7 +80,9 @@ Files: `types.ts` (`Platform`, `ProviderAdapter` — the seam `service.ts` orche
 it never needs to know which provider it's talking to), `errors.ts`, `repository.ts`
 (`upsertAccount`/`listAccounts` — list SELECTs never include the encrypted token columns),
 `meta.ts` (Instagram + Facebook share ONE Meta app/OAuth flow — Instagram has no separate OAuth of
-its own; accounts are discovered via linked Facebook Pages), `service.ts` (`initiateConnection`/
+its own; accounts are discovered via linked Facebook Pages), `google.ts` (YouTube — Google OAuth
+2.0, returns a real `refresh_token` unlike Meta's long-lived-token re-exchange; discovers the
+creator's own channel via the YouTube Data API), `service.ts` (`initiateConnection`/
 `completeConnection`/`disconnectAccount` — signs/verifies OAuth CSRF state, encrypts tokens before
 they ever reach the DB, audit-logs connect/disconnect), `index.ts`.
 Shared infra this leans on (`src/lib/`): `crypto.ts` (AES-256-GCM via `TOKEN_ENCRYPTION_KEY`),
@@ -93,15 +95,17 @@ exists yet), `DELETE /api/integrations/accounts/[accountId]` (disconnect, Part 5
 `accounts/[accountId]` nesting: Next.js forbids two different dynamic segment _names_
 (`[platform]` vs `[accountId]`) as siblings at the same path depth.
 DB: social_accounts, platform_metrics (migration `20260911081710_social_connections`).
-Status: Instagram + Facebook DONE (one Meta app covers both). YouTube (Google OAuth) NOT built —
-`getAdapter("youtube")` throws a clear "not connectable yet" error; it's the natural next task
-(`google.ts`, mirroring `meta.ts`'s shape). 21 tests (Meta adapter against a mocked `fetch`;
-service layer against a mocked adapter + the real DB; HTTP route wiring). Verified live via
-`npm run dev`: auth-required checks, empty list, and — since no Meta app is registered in this
-environment — the MISSING_CREDENTIALS error path, all confirmed correct through the real server.
-**Not live-verified against a real Meta app** — `META_APP_ID`/`META_APP_SECRET` are unset; exact
-Graph API version/scopes (`meta.ts` top comment) should be checked against Meta's current docs
-before this ever runs for real. Same honesty standard as modules/ai without a Claude key.
+Status: DONE for all three platforms (Instagram + Facebook via one Meta app, YouTube via Google).
+30 tests: Meta adapter + Google adapter (each against a mocked `fetch`), service layer (mocked
+adapter + the real DB, incl. confirming `youtube` routes to the Google adapter not Meta's), HTTP
+route wiring. Verified live via `npm run dev`: auth-required checks, empty list, and the
+MISSING_CREDENTIALS error path for both Meta and Google, all confirmed through the real server.
+**Not live-verified against real Meta or Google apps** — `META_APP_ID`/`META_APP_SECRET`/
+`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are all unset. Exact Graph/YouTube API versions and
+scopes (top comments in `meta.ts`/`google.ts`) should be checked against current docs before this
+ever runs for real. Same honesty standard as modules/ai without a Claude key.
+Next real work here: metrics ingestion (writing `PlatformMetric` rows from each platform's
+insights/analytics API) + a sync scheduler — deliberately not part of the OAuth scaffolding.
 
 ## modules/analytics/
 

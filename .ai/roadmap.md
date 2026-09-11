@@ -31,7 +31,7 @@ Legend: [x] done · [~] in progress · [ ] pending
 - [x] Encrypted token storage
 - [x] Instagram OAuth (Meta Graph API) — built, not live-verified (no META_APP_ID yet)
 - [x] Facebook OAuth (Meta Graph API) — built, not live-verified (no META_APP_ID yet)
-- [ ] YouTube OAuth (Google) — next task, mirrors meta.ts
+- [x] YouTube OAuth (Google) — built, not live-verified (no GOOGLE_CLIENT_ID yet)
 - [ ] Metrics ingestion + sync scheduler
 - [x] Connection status / disconnect flow
 

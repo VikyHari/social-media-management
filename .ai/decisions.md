@@ -42,3 +42,8 @@ Format: `D-### · date · decision · why · consequences`
   OAuth code against Meta/Google is written and unit-tested (mocked `fetch`/mocked adapter) without
   real app credentials, exactly like `generateStructured` was built without a real Claude key
   (D-005 era). `.ai/` records plainly what has and hasn't been exercised against the real API.
+- **D-014 · 2026-09-11 · Google returns a real refresh_token; Meta doesn't.** `google.ts` requests
+  `access_type=offline&prompt=consent` and stores the returned `refresh_token` (encrypted, same as
+  the access token). Meta instead exchanges a short-lived token for a ~60-day long-lived one
+  (D-011) — there's no refresh token in that flow. `ExchangedToken.refreshToken` stays optional to
+  fit both shapes without provider-specific branching in `service.ts`.

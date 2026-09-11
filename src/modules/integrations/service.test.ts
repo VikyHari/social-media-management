@@ -4,8 +4,12 @@ import { getDb } from "@/lib/db";
 import { decryptSecret } from "@/lib/crypto";
 import { IntegrationError } from "./errors";
 
-const { createMetaAdapter } = vi.hoisted(() => ({ createMetaAdapter: vi.fn() }));
+const { createMetaAdapter, createGoogleAdapter } = vi.hoisted(() => ({
+  createMetaAdapter: vi.fn(),
+  createGoogleAdapter: vi.fn(),
+}));
 vi.mock("./meta", () => ({ createMetaAdapter }));
+vi.mock("./google", () => ({ createGoogleAdapter }));
 
 import { completeConnection, disconnectAccount, initiateConnection, listAccounts } from "./service";
 
@@ -44,6 +48,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   createMetaAdapter.mockReset();
+  createGoogleAdapter.mockReset();
 });
 
 describe("initiateConnection", () => {
@@ -51,6 +56,18 @@ describe("initiateConnection", () => {
     stubAdapter();
     const { authorizationUrl } = initiateConnection(userId, "facebook");
     expect(authorizationUrl).toBe("https://facebook.example/oauth?mock=1");
+  });
+
+  it("routes youtube to the Google adapter, not the Meta one", () => {
+    createGoogleAdapter.mockReturnValue(
+      buildAdapter({
+        platform: "youtube",
+        buildAuthorizationUrl: vi.fn(() => "https://google.example/oauth?mock=1"),
+      }),
+    );
+    const { authorizationUrl } = initiateConnection(userId, "youtube");
+    expect(authorizationUrl).toBe("https://google.example/oauth?mock=1");
+    expect(createMetaAdapter).not.toHaveBeenCalled();
   });
 });
 

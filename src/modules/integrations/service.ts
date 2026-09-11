@@ -3,6 +3,7 @@ import { encryptSecret } from "@/lib/crypto";
 import { signToken, verifyToken } from "@/lib/signed-token";
 import { recordAuditLog } from "@/lib/audit";
 import { IntegrationError } from "./errors";
+import { createGoogleAdapter } from "./google";
 import { createMetaAdapter } from "./meta";
 import { deleteAccount, findAccountById, listAccounts, upsertAccount } from "./repository";
 import type { Platform, ProviderAdapter } from "./types";
@@ -13,7 +14,9 @@ function getAdapter(platform: Platform): ProviderAdapter {
   if (platform === "facebook" || platform === "instagram") {
     return createMetaAdapter(platform);
   }
-  // YouTube (Google OAuth) is a separate follow-up task — see .ai/current-task.md.
+  if (platform === "youtube") {
+    return createGoogleAdapter();
+  }
   throw new IntegrationError("PROVIDER_ERROR", `${platform} is not connectable yet.`);
 }
 
