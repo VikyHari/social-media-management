@@ -1,20 +1,10 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { resetEnvCache } from "@/lib/env";
+import { describe, expect, it, vi } from "vitest";
 import { IntegrationError } from "./errors";
 import { createGoogleAdapter } from "./google";
 
-const ORIGINAL_ENV = { ...process.env };
-
-beforeAll(() => {
-  process.env.GOOGLE_CLIENT_ID = "test-client-id";
-  process.env.GOOGLE_CLIENT_SECRET = "test-client-secret";
-  resetEnvCache();
-});
-
-afterAll(() => {
-  process.env = { ...ORIGINAL_ENV };
-  resetEnvCache();
-});
+// Credentials are injected directly rather than via process.env — see
+// meta.test.ts's comment for why (BUG #002/#004).
+const CREDENTIALS = { clientId: "test-client-id", clientSecret: "test-client-secret" };
 
 function jsonResponse(body: unknown, ok = true, status = 200): Response {
   return { ok, status, json: async () => body, statusText: "error" } as unknown as Response;
@@ -22,7 +12,7 @@ function jsonResponse(body: unknown, ok = true, status = 200): Response {
 
 describe("createGoogleAdapter", () => {
   it("builds an authorization url requesting offline access and a refresh token", () => {
-    const adapter = createGoogleAdapter();
+    const adapter = createGoogleAdapter(fetch, CREDENTIALS);
     const url = new URL(adapter.buildAuthorizationUrl("state123", "https://app.example/cb"));
     expect(url.searchParams.get("client_id")).toBe("test-client-id");
     expect(url.searchParams.get("state")).toBe("state123");
@@ -31,15 +21,11 @@ describe("createGoogleAdapter", () => {
     expect(url.searchParams.get("scope")).toContain("youtube.readonly");
   });
 
-  it("throws MISSING_CREDENTIALS if the Google client isn't configured", () => {
-    delete process.env.GOOGLE_CLIENT_ID;
-    resetEnvCache();
-    const adapter = createGoogleAdapter();
+  it("throws MISSING_CREDENTIALS if no credentials are available (no override, no env)", () => {
+    const adapter = createGoogleAdapter(fetch);
     expect(() => adapter.buildAuthorizationUrl("s", "https://app.example/cb")).toThrow(
       IntegrationError,
     );
-    process.env.GOOGLE_CLIENT_ID = "test-client-id";
-    resetEnvCache();
   });
 
   it("exchanges a code for an access token and refresh token via a POST", async () => {
@@ -52,7 +38,7 @@ describe("createGoogleAdapter", () => {
       }),
     );
 
-    const adapter = createGoogleAdapter(fetchImpl);
+    const adapter = createGoogleAdapter(fetchImpl, CREDENTIALS);
     const result = await adapter.exchangeCode("auth-code", "https://app.example/cb");
 
     expect(result.accessToken).toBe("access-123");
@@ -69,7 +55,7 @@ describe("createGoogleAdapter", () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ error: "invalid_grant" }, false, 400));
-    const adapter = createGoogleAdapter(fetchImpl);
+    const adapter = createGoogleAdapter(fetchImpl, CREDENTIALS);
     await expect(adapter.exchangeCode("bad-code", "https://app.example/cb")).rejects.toMatchObject({
       code: "PROVIDER_ERROR",
     });
@@ -81,7 +67,9 @@ describe("createGoogleAdapter", () => {
       .mockResolvedValueOnce(
         jsonResponse({ items: [{ id: "channel1", snippet: { title: "My Channel" } }] }),
       );
-    const accounts = await createGoogleAdapter(fetchImpl).discoverAccounts("access-token");
+    const accounts = await createGoogleAdapter(fetchImpl, CREDENTIALS).discoverAccounts(
+      "access-token",
+    );
 
     expect(accounts).toEqual([
       { externalAccountId: "channel1", externalAccountName: "My Channel" },

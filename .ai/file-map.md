@@ -95,12 +95,16 @@ is a separate, later task — this module only gets an account connected and sto
 Files: `types.ts` (`Platform`, `ProviderAdapter` — the seam `service.ts` orchestrates against so
 it never needs to know which provider it's talking to), `errors.ts`, `repository.ts`
 (`upsertAccount`/`listAccounts` — list SELECTs never include the encrypted token columns),
-`meta.ts` (Instagram + Facebook share ONE Meta app/OAuth flow — Instagram has no separate OAuth of
-its own; accounts are discovered via linked Facebook Pages), `google.ts` (YouTube — Google OAuth
-2.0, returns a real `refresh_token` unlike Meta's long-lived-token re-exchange; discovers the
-creator's own channel via the YouTube Data API), `service.ts` (`initiateConnection`/
-`completeConnection`/`disconnectAccount` — signs/verifies OAuth CSRF state, encrypts tokens before
-they ever reach the DB, audit-logs connect/disconnect), `index.ts`.
+`meta.ts` (Facebook Login for Business — Facebook Pages only, using `META_APP_ID`/`SECRET`),
+`instagram.ts` (Instagram Business Login — its OWN standalone OAuth flow on `instagram.com`, its
+OWN credential pair `INSTAGRAM_APP_ID`/`SECRET`, NOT the same as Facebook's; no Facebook Page
+needed; D-017/BUG #004 — this was wrong in an earlier pass, corrected after verifying live docs),
+`google.ts` (YouTube — Google OAuth 2.0, returns a real `refresh_token` unlike Meta's
+long-lived-token re-exchange; discovers the creator's own channel via the YouTube Data API),
+`service.ts` (`initiateConnection`/`completeConnection`/`disconnectAccount` — signs/verifies OAuth
+CSRF state, encrypts tokens before they ever reach the DB, audit-logs connect/disconnect),
+`index.ts`. All three provider adapters take an injectable credentials override (D-018) so their
+tests never touch `process.env`.
 Shared infra this leans on (`src/lib/`): `crypto.ts` (AES-256-GCM via `TOKEN_ENCRYPTION_KEY`),
 `signed-token.ts` (generic signed short-lived tokens — OAuth state today, reusable for e.g. email
 verification later).
@@ -111,15 +115,17 @@ exists yet), `DELETE /api/integrations/accounts/[accountId]` (disconnect, Part 5
 `accounts/[accountId]` nesting: Next.js forbids two different dynamic segment _names_
 (`[platform]` vs `[accountId]`) as siblings at the same path depth.
 DB: social_accounts, platform_metrics (migration `20260911081710_social_connections`).
-Status: DONE for all three platforms (Instagram + Facebook via one Meta app, YouTube via Google).
-30 tests: Meta adapter + Google adapter (each against a mocked `fetch`), service layer (mocked
-adapter + the real DB, incl. confirming `youtube` routes to the Google adapter not Meta's), HTTP
-route wiring. Verified live via `npm run dev`: auth-required checks, empty list, and the
-MISSING_CREDENTIALS error path for both Meta and Google, all confirmed through the real server.
+Status: DONE for all three platforms, each its own standalone OAuth flow (Facebook, Instagram,
+YouTube — no shared flow between any two of them, per D-017's correction). 36 tests: each of the
+three adapters against a mocked `fetch`, service layer (mocked adapters + the real DB, incl.
+confirming each platform routes to its own adapter and none other), HTTP route wiring. Verified
+live via `npm run dev`: auth-required checks, empty list, and the MISSING_CREDENTIALS error path
+for Facebook and YouTube, all confirmed through the real server.
 **Not live-verified against real Meta or Google apps** — `META_APP_ID`/`META_APP_SECRET`/
-`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are all unset. Exact Graph/YouTube API versions and
-scopes (top comments in `meta.ts`/`google.ts`) should be checked against current docs before this
-ever runs for real. Same honesty standard as modules/ai without a Claude key.
+`INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET`/`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are all unset.
+Exact API versions/scopes (top comments in `meta.ts`/`instagram.ts`/`google.ts`) were checked
+against live docs on 2026-09-11 — re-verify periodically since these evolve. Same honesty standard
+as modules/ai without a Claude key. See README "Connecting social accounts" for setup steps.
 Next real work here: metrics ingestion (writing `PlatformMetric` rows from each platform's
 insights/analytics API) + a sync scheduler — deliberately not part of the OAuth scaffolding.
 

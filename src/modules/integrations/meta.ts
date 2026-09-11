@@ -1,43 +1,49 @@
 import { getEnv } from "@/lib/env";
 import { IntegrationError } from "./errors";
-import type { DiscoveredAccount, ExchangedToken, Platform, ProviderAdapter } from "./types";
+import type { DiscoveredAccount, ExchangedToken, ProviderAdapter } from "./types";
 
 /**
- * Meta (Instagram + Facebook) via one Meta app and one Facebook Login OAuth
- * flow — the Instagram Graph API has no separate OAuth of its own; Instagram
- * Business accounts are discovered through the Facebook Page they're linked
- * to (Part 25). NOT live-verified against a real Meta app — see
- * .ai/known-issues.md / project-state.md. Before relying on this in
- * production, verify against https://developers.facebook.com/docs/graph-api/changelog:
- *   - GRAPH_API_VERSION is current
- *   - SCOPES match Instagram/Facebook's current permissions reference for the
- *     metrics Part 26 needs (followers, reach, views, engagement, ...)
+ * Facebook Login for Business — Facebook Pages only. Instagram is a
+ * SEPARATE, standalone OAuth flow now (see instagram.ts, D-017) — it used
+ * to be reached through this same Facebook flow (the old
+ * instagram_business_account lookup on a Page), but that approach's scopes
+ * were deprecated; Instagram Business Login is Meta's current path and does
+ * not need a Facebook Page at all.
+ *
+ * NOT live-verified against a real Meta app — see .ai/known-issues.md /
+ * project-state.md. GRAPH_API_VERSION/SCOPES were checked against Meta's
+ * docs on 2026-09-11; verify again at
+ * https://developers.facebook.com/docs/graph-api/changelog before relying
+ * on this for real, since Graph API versions retire on a schedule.
  */
-const GRAPH_API_VERSION = "v21.0"; // verify — Graph API versions retire on a schedule
+const GRAPH_API_VERSION = "v26.0";
 const AUTH_BASE = "https://www.facebook.com";
 const GRAPH_BASE = "https://graph.facebook.com";
-
-const SCOPES: Record<"facebook" | "instagram", string[]> = {
-  facebook: ["pages_show_list", "pages_read_engagement", "pages_manage_metadata", "public_profile"],
-  instagram: [
-    "pages_show_list",
-    "instagram_basic",
-    "instagram_manage_insights",
-    "pages_read_engagement",
-  ],
-};
+const SCOPES = [
+  "pages_show_list",
+  "pages_read_engagement",
+  "pages_manage_metadata",
+  "public_profile",
+];
 
 interface MetaCredentials {
   appId: string;
   appSecret: string;
 }
 
-function getCredentials(): MetaCredentials {
+/**
+ * @param override injectable for tests, so they never need to mutate
+ * process.env (a prior version of these tests did, and it caused an
+ * intermittent cross-file race under Vitest's parallel workers — see
+ * BUG #002/#004). Defaults to reading from the real environment.
+ */
+function getCredentials(override?: MetaCredentials): MetaCredentials {
+  if (override) return override;
   const env = getEnv();
   if (!env.META_APP_ID || !env.META_APP_SECRET) {
     throw new IntegrationError(
       "MISSING_CREDENTIALS",
-      "META_APP_ID / META_APP_SECRET are not set. Add them to .env to connect Instagram or Facebook.",
+      "META_APP_ID / META_APP_SECRET are not set. Add them to .env to connect Facebook.",
     );
   }
   return { appId: env.META_APP_ID, appSecret: env.META_APP_SECRET };
@@ -56,30 +62,29 @@ async function parseGraphResponse<T>(response: Response, context: string): Promi
 }
 
 /**
- * @param platform "facebook" or "instagram" — same app/flow, different scopes
- * and discovery step. @param fetchImpl injectable for tests; defaults to the
- * global fetch.
+ * @param fetchImpl injectable for tests; defaults to the global fetch.
+ * @param credentials injectable for tests; defaults to reading META_APP_ID/SECRET from env.
  */
 export function createMetaAdapter(
-  platform: "facebook" | "instagram",
   fetchImpl: typeof fetch = fetch,
+  credentials?: MetaCredentials,
 ): ProviderAdapter {
   return {
-    platform: platform as Platform,
+    platform: "facebook",
 
     buildAuthorizationUrl(state: string, redirectUri: string): string {
-      const { appId } = getCredentials();
+      const { appId } = getCredentials(credentials);
       const url = new URL(`${AUTH_BASE}/${GRAPH_API_VERSION}/dialog/oauth`);
       url.searchParams.set("client_id", appId);
       url.searchParams.set("redirect_uri", redirectUri);
       url.searchParams.set("state", state);
-      url.searchParams.set("scope", SCOPES[platform].join(","));
+      url.searchParams.set("scope", SCOPES.join(","));
       url.searchParams.set("response_type", "code");
       return url.toString();
     },
 
     async exchangeCode(code: string, redirectUri: string): Promise<ExchangedToken> {
-      const { appId, appSecret } = getCredentials();
+      const { appId, appSecret } = getCredentials(credentials);
 
       const shortLivedUrl = new URL(`${GRAPH_BASE}/${GRAPH_API_VERSION}/oauth/access_token`);
       shortLivedUrl.searchParams.set("client_id", appId);
@@ -106,7 +111,7 @@ export function createMetaAdapter(
 
       return {
         accessToken: longLived.access_token,
-        scopes: SCOPES[platform],
+        scopes: SCOPES,
         expiresAt: longLived.expires_in
           ? new Date(Date.now() + longLived.expires_in * 1000)
           : undefined,
@@ -116,26 +121,17 @@ export function createMetaAdapter(
     async discoverAccounts(accessToken: string): Promise<DiscoveredAccount[]> {
       const pagesUrl = new URL(`${GRAPH_BASE}/${GRAPH_API_VERSION}/me/accounts`);
       pagesUrl.searchParams.set("access_token", accessToken);
-      pagesUrl.searchParams.set("fields", "id,name,instagram_business_account");
+      pagesUrl.searchParams.set("fields", "id,name");
 
-      const pages = await parseGraphResponse<{
-        data: Array<{ id: string; name: string; instagram_business_account?: { id: string } }>;
-      }>(await fetchImpl(pagesUrl.toString()), "list Pages");
+      const pages = await parseGraphResponse<{ data: Array<{ id: string; name: string }> }>(
+        await fetchImpl(pagesUrl.toString()),
+        "list Pages",
+      );
 
-      if (platform === "facebook") {
-        return pages.data.map((page) => ({
-          externalAccountId: page.id,
-          externalAccountName: page.name,
-        }));
-      }
-
-      // instagram: only Pages with a linked IG Business account are connectable.
-      return pages.data
-        .filter((page) => page.instagram_business_account)
-        .map((page) => ({
-          externalAccountId: page.instagram_business_account!.id,
-          externalAccountName: page.name,
-        }));
+      return pages.data.map((page) => ({
+        externalAccountId: page.id,
+        externalAccountName: page.name,
+      }));
     },
   };
 }

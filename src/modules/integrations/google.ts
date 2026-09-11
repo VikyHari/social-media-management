@@ -31,7 +31,13 @@ interface GoogleCredentials {
   clientSecret: string;
 }
 
-function getCredentials(): GoogleCredentials {
+/**
+ * @param override injectable for tests, so they never need to mutate
+ * process.env (see meta.ts's getCredentials for why). Defaults to reading
+ * from the real environment.
+ */
+function getCredentials(override?: GoogleCredentials): GoogleCredentials {
+  if (override) return override;
   const env = getEnv();
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
     throw new IntegrationError(
@@ -54,13 +60,19 @@ async function parseJsonResponse<T>(response: Response, context: string): Promis
   return body;
 }
 
-/** @param fetchImpl injectable for tests; defaults to the global fetch. */
-export function createGoogleAdapter(fetchImpl: typeof fetch = fetch): ProviderAdapter {
+/**
+ * @param fetchImpl injectable for tests; defaults to the global fetch.
+ * @param credentials injectable for tests; defaults to reading GOOGLE_CLIENT_ID/SECRET from env.
+ */
+export function createGoogleAdapter(
+  fetchImpl: typeof fetch = fetch,
+  credentials?: GoogleCredentials,
+): ProviderAdapter {
   return {
     platform: "youtube",
 
     buildAuthorizationUrl(state: string, redirectUri: string): string {
-      const { clientId } = getCredentials();
+      const { clientId } = getCredentials(credentials);
       const url = new URL(AUTH_ENDPOINT);
       url.searchParams.set("client_id", clientId);
       url.searchParams.set("redirect_uri", redirectUri);
@@ -73,7 +85,7 @@ export function createGoogleAdapter(fetchImpl: typeof fetch = fetch): ProviderAd
     },
 
     async exchangeCode(code: string, redirectUri: string): Promise<ExchangedToken> {
-      const { clientId, clientSecret } = getCredentials();
+      const { clientId, clientSecret } = getCredentials(credentials);
 
       const body = new URLSearchParams({
         code,

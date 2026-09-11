@@ -27,8 +27,14 @@ const envSchema = z.object({
     .string()
     .regex(/^[0-9a-f]{64}$/i, "TOKEN_ENCRYPTION_KEY must be 64 hex chars (32 bytes)"),
   ANTHROPIC_API_KEY: z.string().optional(),
+  // Facebook Login for Business — Facebook Pages only (D-017).
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
+  // Instagram Business Login — a separate credential pair from the same Meta
+  // app's dashboard (App Dashboard > Instagram > API setup with Instagram
+  // login). Not the same values as META_APP_ID/SECRET (D-017).
+  INSTAGRAM_APP_ID: z.string().optional(),
+  INSTAGRAM_APP_SECRET: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
 });

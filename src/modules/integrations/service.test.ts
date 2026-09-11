@@ -4,12 +4,14 @@ import { getDb } from "@/lib/db";
 import { decryptSecret } from "@/lib/crypto";
 import { IntegrationError } from "./errors";
 
-const { createMetaAdapter, createGoogleAdapter } = vi.hoisted(() => ({
+const { createMetaAdapter, createGoogleAdapter, createInstagramAdapter } = vi.hoisted(() => ({
   createMetaAdapter: vi.fn(),
   createGoogleAdapter: vi.fn(),
+  createInstagramAdapter: vi.fn(),
 }));
 vi.mock("./meta", () => ({ createMetaAdapter }));
 vi.mock("./google", () => ({ createGoogleAdapter }));
+vi.mock("./instagram", () => ({ createInstagramAdapter }));
 
 import { completeConnection, disconnectAccount, initiateConnection, listAccounts } from "./service";
 
@@ -49,6 +51,7 @@ afterAll(async () => {
 beforeEach(() => {
   createMetaAdapter.mockReset();
   createGoogleAdapter.mockReset();
+  createInstagramAdapter.mockReset();
 });
 
 describe("initiateConnection", () => {
@@ -67,6 +70,18 @@ describe("initiateConnection", () => {
     );
     const { authorizationUrl } = initiateConnection(userId, "youtube");
     expect(authorizationUrl).toBe("https://google.example/oauth?mock=1");
+    expect(createMetaAdapter).not.toHaveBeenCalled();
+  });
+
+  it("routes instagram to its own standalone adapter, not the Meta (Facebook) one", () => {
+    createInstagramAdapter.mockReturnValue(
+      buildAdapter({
+        platform: "instagram",
+        buildAuthorizationUrl: vi.fn(() => "https://instagram.example/oauth?mock=1"),
+      }),
+    );
+    const { authorizationUrl } = initiateConnection(userId, "instagram");
+    expect(authorizationUrl).toBe("https://instagram.example/oauth?mock=1");
     expect(createMetaAdapter).not.toHaveBeenCalled();
   });
 });

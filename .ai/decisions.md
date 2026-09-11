@@ -29,10 +29,9 @@ Format: `D-### · date · decision · why · consequences`
   ships with an empty pricing table and returns `null` until real per-model USD rates are filled
   in from Anthropic's pricing page. Token counts (`AiUsageLog.inputTokens`/`outputTokens`) are
   always the real, observed numbers from the API response and are the source of truth until then.
-- **D-011 · 2026-09-11 · Instagram and Facebook are one provider (Meta), not two.** The Instagram
-  Graph API has no OAuth of its own — access comes through Facebook Login against a single Meta
-  app, and IG Business accounts are discovered via the Facebook Page they're linked to.
-  `src/modules/integrations/meta.ts` implements both `platform`s off one OAuth mechanism.
+- **D-011 · 2026-09-11 · SUPERSEDED BY D-017.** Originally: "Instagram and Facebook are one Meta
+  OAuth flow." This was wrong — see BUG #004 and D-017. Kept for history; do not implement against
+  this entry.
 - **D-012 · 2026-09-11 · Provider-agnostic orchestration via a `ProviderAdapter` interface.**
   `src/modules/integrations/service.ts` never imports a provider SDK directly; it calls
   `buildAuthorizationUrl`/`exchangeCode`/`discoverAccounts` on whichever adapter `getAdapter()`
@@ -60,3 +59,16 @@ Format: `D-### · date · decision · why · consequences`
   connect/disconnect buttons) do use `fetch` against the API routes, since they run in the browser
   and have no other way in. Standard Next.js App Router split — server-side data reads skip the
   network hop; client-side mutations go through the same routes the tests already cover.
+- **D-017 · 2026-09-11 · Instagram uses its own standalone "Instagram Business Login" OAuth flow,
+  not Facebook's (supersedes D-011, see BUG #004).** Verified against live Meta developer docs:
+  Instagram's own domain (`instagram.com`/`api.instagram.com`/`graph.instagram.com`), its own
+  credential pair (`INSTAGRAM_APP_ID`/`SECRET`, distinct from `META_APP_ID`/`SECRET`), no Facebook
+  Page required. `src/modules/integrations/instagram.ts` implements it; `meta.ts` is now
+  Facebook-only. Lesson generalized in BUG #004: verify third-party API integrations against live
+  docs before writing setup instructions a real user follows, not just before writing code that
+  only ever talks to mocks in tests.
+- **D-018 · 2026-09-11 · OAuth provider adapters accept injectable credentials, not just an
+  injectable `fetch`.** `createMetaAdapter`/`createInstagramAdapter`/`createGoogleAdapter` all take
+  an optional credentials override now, so their tests never mutate `process.env` (the exact
+  pattern BUG #002 warned would recur — see the open FLAKE entry in known-issues.md). Same
+  dependency-injection shape as `structured.ts`'s injectable AI client (D-009 era).

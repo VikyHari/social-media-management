@@ -4,92 +4,91 @@
 
 ## Phase
 
-PHASE 2 done (OAuth scaffolding, all 3 platforms) + a first real UI now exists across Phases 1-2.
+PHASE 2 done (OAuth for all 3 platforms, each correctly its own flow) + first UI (Phases 0-2).
+User's stated priority: get real account connections working end to end BEFORE any AI work.
 
 ## Current Sprint
 
-Just shipped: login/signup, a dashboard hub, and the onboarding chat — the app's first real,
-navigable UI, tying together auth + AI + creator onboarding + social connection.
+Just fixed two real problems surfaced this session (CI had been silently broken since Phase 0; the
+Instagram OAuth architecture was built on stale assumptions) and wrote the actual account-setup
+instructions the user asked for. See README "Connecting social accounts".
 
 ## Completed
 
-- **Phase 0 (foundation) + Phase 1 (auth, AI client, onboarding interview + creator profile) +
-  Phase 2 (Instagram/Facebook/YouTube OAuth scaffolding):** all done, tested, pushed. See git
-  history for full detail if needed.
-- **First UI** (`src/app/{page,login,dashboard,onboarding}`), on top of `src/lib/auth-guard.ts`
-  (`requireUser()`/`getOptionalUser()` Server Component guards) and a new
-  `getSessionTokenFromCookieStore()` in `src/modules/auth/cookie.ts` (the `next/headers`
-  counterpart to route handlers' request-based cookie reading, D-016).
-  - `/` — redirects to `/dashboard` or `/login` by auth state.
-  - `/login` — combined signup/login form (Client Component), redirects to `/dashboard` on success.
-  - `/dashboard` — the hub: greeting, profile summary or an onboarding CTA if none exists yet,
-    goals list, and a connect/disconnect row per platform that honestly shows "Not configured yet"
-    (grayed out, no dead link) when a provider's env vars are unset rather than offering a button
-    that would just error. Handles the OAuth callback's `?connected=`/`?integration_error=` banner.
-  - `/onboarding` — the interview chat UI: starts a conversation on load, sends each answer via
-    `PATCH`, shows the profile-ready state and a link back on completion. Degrades gracefully (a
-    clear error message, no crash) when `ANTHROPIC_API_KEY` is missing — verified this is actually
-    what happens, not assumed.
-  - **No component-test framework was added** (D-015) — verified instead via a full live
-    walkthrough through the real running app using the Browser tool: signup → dashboard (correct
-    greeting, correct empty states) → onboarding (graceful failure, confirmed via server logs to
-    be the missing API key, not a bug) → back to dashboard (session persisted) → sign out →
-    `/dashboard` correctly redirects to `/login` while signed out → log back in → both the success
-    and error callback banners render correctly. Every step confirmed against the actual app, not
-    assumed from reading the code.
-  - `npm run build` succeeds; `/`, `/login`, `/dashboard`, `/onboarding` all register correctly.
-- **Testing:** 86 automated tests (unchanged by this UI work — it's a presentation layer over
-  already-tested APIs/services), run 3x for determinism. Full suite + build green throughout.
+- **CI fixed (BUG #003):** every GitHub Actions run had failed since the workflow was first added
+  — `npm run typecheck` ran before anything generated Next.js's ambient route types. Fixed at the
+  script level (`next typegen && tsc --noEmit`), not just in CI config. **Verified green** via the
+  public GitHub Actions API, not assumed.
+- **Instagram OAuth corrected (BUG #004, D-017):** the original implementation treated Instagram
+  as sharing Facebook's OAuth flow — verified against live Meta docs that this is wrong. Instagram
+  now has its own standalone adapter (`src/modules/integrations/instagram.ts`) on Instagram's own
+  domain, with its own credential pair (`INSTAGRAM_APP_ID`/`SECRET`, distinct from
+  `META_APP_ID`/`SECRET`). `meta.ts` is now Facebook-only.
+- **Provider adapters now take injectable credentials (D-018)**, not just an injectable `fetch` —
+  their tests no longer touch `process.env` at all, closing the exact risk class BUG #002 flagged.
+- **README "Connecting social accounts"** — real, step-by-step setup instructions for Facebook,
+  Instagram, and YouTube, including the exact redirect URIs the code expects and the
+  Development/Testing-mode limitation (only accounts you add as testers can connect pre-review).
+- 92 tests (up from 86 — 6 new for the Instagram split), run many times for determinism (see
+  Known Issues — one inconclusive flake investigated at length, not fully resolved).
+- Phase 0-2 work (foundation, auth, AI client, creator onboarding, OAuth scaffolding, first UI):
+  all previously done — see git history / prior state if full detail is needed.
 
 ## In Progress
 
-(none — first UI fully done and live-verified)
+(none)
 
 ## Next
 
-Same open decision as before this UI pass — nothing has resolved it, just made the app usable
-enough that the choice matters more now:
+The user's priority is explicit: **account setup and linking, AI work last.** Everything needed on
+the code side for that is now done and correct. What remains is entirely the user's own action:
 
-1. **Metrics ingestion** (last Phase 2 item) — needs a real connected account to verify against.
-2. **Real provider credentials** (Meta app, Google Cloud OAuth client, or both) — would let both
-   modules/integrations AND the dashboard's connect buttons finally prove themselves end to end.
-3. **Live-verify modules/ai + modules/creator** — check `.env` for `ANTHROPIC_API_KEY` (the user
-   said they'd add it); if present, the onboarding chat UI just built is the natural way to
-   verify it for real, no extra work needed.
-4. **More UI**: only the happy paths got a screen. No password-reset flow, no way to edit the
-   profile outside redoing the whole interview, no settings page, no content/analytics screens
-   (nothing to show yet — Phase 3/4 don't exist).
+1. **Follow README "Connecting social accounts"** to register the Meta app (Facebook + Instagram
+   product) and the Google Cloud OAuth client, add the resulting credentials to `.env`.
+2. Once any one credential pair is in `.env`, restart `npm run dev` and click that platform's
+   Connect button on the dashboard — this is the first real end-to-end live test of
+   modules/integrations, and I should walk through it live (Browser tool) once credentials exist,
+   the same way the rest of the app was live-verified.
+3. Only after account connection is proven working: circle back to `ANTHROPIC_API_KEY` /
+   modules/ai / modules/creator live verification (explicitly deprioritized by the user).
+4. Metrics ingestion (writing real `PlatformMetric` rows) is the logical following step once at
+   least one account is genuinely connected — no point building it before there's real data to
+   ingest from.
 
 ## Known Issues
 
-None open. See `.ai/known-issues.md` for resolved history (BUG #001 git push access, BUG #002
-Vitest env loading / test cross-contamination).
+See `.ai/known-issues.md`. One OPEN item: an intermittent test-suite flake (3 failing runs in a
+row, then 30+ consecutive clean runs across many configurations) that could not be reproduced with
+logging attached despite significant effort — investigated honestly, not swept under the rug, but
+not resolved. A genuine safety fix (credential injection, D-018) was applied on its own merits
+either way. Watch for recurrence; capture full output immediately if it happens again.
 
 **Still true, not bugs — pending user action:**
 
-- `ANTHROPIC_API_KEY` unset. Check `.env` at the start of any future session before assuming.
-- `META_APP_ID`/`META_APP_SECRET`/`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` unset — needs the user
-  to register apps with Meta and Google (Part 67, cannot be done by the agent).
-- A stray `npm run dev` from earlier in this session was left listening on port 3000 and had to be
-  stopped before the final live UI walkthrough. If a future session hits "port already in use",
-  check `Get-NetTCPConnection -LocalPort 3000` (PowerShell) before assuming something is wrong.
+- `META_APP_ID`/`META_APP_SECRET`/`INSTAGRAM_APP_ID`/`INSTAGRAM_APP_SECRET`/`GOOGLE_CLIENT_ID`/
+  `GOOGLE_CLIENT_SECRET` all unset. This is the user's current top priority — see README.
+- `ANTHROPIC_API_KEY` unset — explicitly deprioritized by the user (do AI work last).
 
 ## Last Tested
 
-2026-09-11 — full suite: format:check, lint, typecheck, `npm test` (86/86), `npm run build`, plus
-a complete live browser walkthrough of the new UI (see "Completed" above for the exact steps).
+2026-09-11 — format:check, lint, typecheck, `npm test` (92/92, run 30+ times across the flake
+investigation), `npm run build`. CI confirmed green via the GitHub Actions API for the CI-fix
+commit. No live OAuth test possible yet (no real credentials) — will be the first thing to verify
+live once the user has added any one platform's credentials.
 
 ## Git
 
 Branch: main
-Last commit: `e2cda4f` "feat: add first UI - login, dashboard, onboarding chat"
-Last push: SUCCESS — origin/main up to date with local main.
+Last commit: `bb1c43b` "fix: CI has been failing on every push since the workflow was added (BUG #003)"
+(the Instagram correction + README setup guide is implemented and tested but NOT YET committed)
+Last push: SUCCESS (as of `bb1c43b`)
 Remote: https://github.com/VikyHari/social-media-management.git
 
 ## Next Recommended Action
 
-1. Commit and push the UI (`src/app/{page.tsx,login/**,dashboard/**,onboarding/**}`,
-   `src/lib/auth-guard.ts`, the `src/modules/auth/cookie.ts` + `index.ts` addition, the
-   `src/modules/integrations/types.ts`/`index.ts` `PLATFORMS` export).
-2. Report the delivery and ask the user to pick from "Next" above — every remaining direction
-   depends on either credentials only they can provide, or a scope decision.
+1. Commit and push this session's fixes (CI fix already pushed; Instagram correction + credential
+   injection + README setup guide still local).
+2. Wait for the user to register the Meta app and/or Google Cloud OAuth client and add credentials
+   to `.env` per the new README section — nothing further can be verified live until then.
+3. Once any credentials land, live-walk the actual OAuth connection flow (Browser tool) the same
+   way every other feature in this app has been verified, and report honestly what worked.

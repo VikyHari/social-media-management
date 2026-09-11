@@ -4,6 +4,7 @@ import { signToken, verifyToken } from "@/lib/signed-token";
 import { recordAuditLog } from "@/lib/audit";
 import { IntegrationError } from "./errors";
 import { createGoogleAdapter } from "./google";
+import { createInstagramAdapter } from "./instagram";
 import { createMetaAdapter } from "./meta";
 import { deleteAccount, findAccountById, listAccounts, upsertAccount } from "./repository";
 import type { Platform, ProviderAdapter } from "./types";
@@ -11,8 +12,11 @@ import type { Platform, ProviderAdapter } from "./types";
 const STATE_PURPOSE = "integrations.oauth_state";
 
 function getAdapter(platform: Platform): ProviderAdapter {
-  if (platform === "facebook" || platform === "instagram") {
-    return createMetaAdapter(platform);
+  if (platform === "facebook") {
+    return createMetaAdapter();
+  }
+  if (platform === "instagram") {
+    return createInstagramAdapter();
   }
   if (platform === "youtube") {
     return createGoogleAdapter();

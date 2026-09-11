@@ -28,7 +28,7 @@ export default async function DashboardPage({
 
   const env = getEnv();
   const configured = {
-    instagram: Boolean(env.META_APP_ID && env.META_APP_SECRET),
+    instagram: Boolean(env.INSTAGRAM_APP_ID && env.INSTAGRAM_APP_SECRET),
     facebook: Boolean(env.META_APP_ID && env.META_APP_SECRET),
     youtube: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
   };
