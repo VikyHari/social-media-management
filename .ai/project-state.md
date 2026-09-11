@@ -85,15 +85,12 @@ Vitest env loading / test cross-contamination).
 ## Git
 
 Branch: main
-Last commit: `bf6e6f0` "feat: add Instagram + Facebook OAuth connection (Phase 2 scaffolding)"
-(YouTube adapter is implemented and tested but NOT YET committed — see Next Recommended Action)
-Last push: SUCCESS (as of `bf6e6f0`)
+Last commit: `e725dab` "feat: add YouTube OAuth connection, completing Phase 2 scaffolding"
+Last push: SUCCESS — origin/main up to date with local main.
 Remote: https://github.com/VikyHari/social-media-management.git
 
 ## Next Recommended Action
 
-1. Commit and push the YouTube adapter (`src/modules/integrations/google.ts` + `google.test.ts`,
-   `service.ts`'s `getAdapter` wiring, `service.test.ts` addition).
-2. Report the full Phase 2 OAuth scaffolding delivery to the user and let them redirect: metrics
-   ingestion, real provider credentials, a dashboard UI, or something else — rather than silently
-   starting another large unverifiable module.
+Report the full Phase 2 OAuth scaffolding delivery to the user and let them redirect: metrics
+ingestion, real provider credentials, a dashboard UI, or something else — rather than silently
+starting another large unverifiable module. See `.ai/current-task.md` for the candidate list.
