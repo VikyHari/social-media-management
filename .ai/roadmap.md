@@ -18,7 +18,7 @@ Legend: [x] done · [~] in progress · [ ] pending
 
 ## PHASE 1 — CREATOR INTELLIGENCE
 
-- [ ] Authentication (email + password, DB sessions)
+- [x] Authentication (email + password, DB sessions)
 - [ ] AI client module (Claude, structured output, cost logging)
 - [ ] Onboarding interview (adaptive questions)
 - [ ] Creator profile (structured, AI-maintained)

@@ -4,62 +4,70 @@
 
 ## Phase
 
-PHASE 0 — FOUNDATION: COMPLETE. Starting PHASE 1 — CREATOR INTELLIGENCE.
+PHASE 1 — CREATOR INTELLIGENCE (auth done, AI client module next)
 
 ## Current Sprint
 
-Phase 1: authentication, AI client module, creator onboarding interview, creator profile.
+Phase 1: authentication (done) → AI client module → creator onboarding interview → creator profile.
 
 ## Completed
 
-- Environment inspected (Windows 11, Node 20.19, npm 10.8, Python 3.13, Docker 29, git 2.50; no pnpm/gh/psql)
-- Next.js 16 + TypeScript + Tailwind v4 + ESLint 9 scaffold (App Router, `src/` dir, `@/*` alias)
-- Dependencies: prisma 7.10, @prisma/client, @prisma/adapter-pg, pg, zod 4, @anthropic-ai/sdk, vitest 4, prettier, tsx, dotenv
-- docker-compose.yml (PostgreSQL 16, host port 5440 — 5432/5433/5434 were already in use locally) and DB started
-- `.env.example` (tracked) + `.env` (ignored, generated secrets)
-- `src/lib/env.ts` validated env (Zod) + unit tests (5 passing)
-- `prisma/schema.prisma`: User, Session, AuditLog models + first migration `20260911062952_init` applied
-- `src/lib/db.ts` lazy Prisma client singleton (pg adapter) + `src/app/api/health/route.ts`
-- Prettier, Vitest, GitHub Actions CI (lint, typecheck, format, test, migrate, build)
-- `.ai/` project memory system (this file + architecture, roadmap, decisions, known-issues, file-map, current-task)
-- CLAUDE.md agent protocol, README.md
-- Verified locally: `npm run lint` ✓, `npm run typecheck` ✓, `npm test` ✓ (5/5), `npm run format:check` ✓,
-  `npm run build` ✓, `npm run dev` serves `/` (200) and `/api/health` returns
-  `{"status":"ok","db":"ok"}` with a live PostgreSQL connection.
-- Git: 2 commits pushed to `origin/main` (`da2c812` foundation, `8c785e6` docs). BUG #001
-  (push access) resolved — see `.ai/known-issues.md`.
+- **Phase 0 (foundation):** Next.js 16 + TS + Tailwind v4 + ESLint 9 + Prettier scaffold; PostgreSQL
+  16 via Docker (port 5440) + Prisma 7; Zod-validated env; GitHub Actions CI; `.ai/` project memory;
+  pushed to `origin/main`.
+- **Phase 1 — `src/modules/auth`:** signup, login, logout, session validation.
+  - bcrypt password hashing (`password.ts`, 12 salt rounds, 72-char cap to match bcrypt's limit)
+  - Opaque random session tokens; only an HMAC (keyed by `SESSION_SECRET`) is stored as
+    `Session.tokenHash` (`tokens.ts`) — a leaked DB alone can't mint valid cookies
+  - DB-backed sessions, 30-day expiry, httpOnly/SameSite=Lax/Secure-in-prod cookie (`cookie.ts`)
+  - Zod input validation (`schemas.ts`); same generic error for wrong-password vs. no-such-user
+    (no email enumeration via login)
+  - Audit log entries for signup/login/logout (`src/lib/audit.ts`, reusable by later modules)
+  - Per-IP rate limiting on signup/login (`src/lib/rate-limit.ts`, in-memory — see limitation below)
+  - Routes: `POST /api/auth/{signup,login,logout}`, `GET /api/auth/me`
+  - Shared helpers added to `src/lib/`: `api.ts` (parseJsonBody/apiErrorResponse), `rate-limit.ts`,
+    `audit.ts` — all reusable by every future module, not auth-specific
+  - Tests: 36 passing across 7 files — unit tests (password, tokens, rate-limit, api helper) +
+    integration tests against the real local Postgres (service layer + actual HTTP route handlers)
+  - Verified live via `npm run dev`: signup(201) → me(200) → logout(200) → me(401) → login(200) →
+    duplicate signup(409), cookie attributes confirmed (httpOnly, 30d, Secure=false in dev), audit
+    log rows confirmed (`auth.signup`, `auth.login`, `auth.logout`)
+  - No Prisma migration needed — User/Session models already existed from Phase 0
 
 ## In Progress
 
-(none — Phase 0 fully done)
+(none — auth module fully done)
 
 ## Next
 
-1. `src/modules/auth`: User signup/login, bcrypt password hashing, DB-backed sessions (httpOnly
-   cookie), logout. Extends the existing `User`/`Session` Prisma models.
-2. `src/modules/ai`: Claude client wrapper (`@anthropic-ai/sdk`), structured-output helper
-   (Zod-validated), usage/cost logging. No feature should call the SDK directly.
-3. `src/modules/creator`: adaptive onboarding interview + structured creator profile
-   (niche, audience, goals, platforms, content style, equipment, budget, time). Uses the AI module.
-4. Update Prisma schema incrementally per module (creator_profiles, goals, ai_conversations, ai_memory).
+1. `src/modules/ai`: Claude client wrapper (`@anthropic-ai/sdk`), a structured-output helper
+   (prompt → Zod-validated typed result), usage/cost logging (`ai_conversations`/`ai_memory`
+   tables — new Prisma models needed). No other module should call the SDK directly.
+2. `src/modules/creator`: adaptive onboarding interview (uses modules/ai) + structured creator
+   profile (niche, audience, goals, platforms, content style, equipment, budget, time) +
+   `creator_profiles`/`goals` Prisma models. Requires a logged-in user (modules/auth).
 
 ## Known Issues
 
-None open. See `.ai/known-issues.md` for resolved history.
+None open. See `.ai/known-issues.md` for resolved history (BUG #001 git push access, BUG #002
+Vitest env loading / test cross-contamination).
 
 ## Last Tested
 
-2026-09-11 — lint, typecheck, vitest (5/5), format:check, build, and a live `npm run dev` hit
-against `/` and `/api/health` all passed.
+2026-09-11 — full suite: format:check, lint, typecheck, `npm test` (36/36, run 3x for determinism),
+`npm run build`, and a live end-to-end smoke test of every auth route via `npm run dev` + curl.
 
 ## Git
 
 Branch: main
-Last commit: `8c785e6` "docs: record git push access blocker (BUG #001)"
-Last push: SUCCESS — origin/main up to date with local main.
+Last commit: `96effff` "docs: close Phase 0, resolve BUG #001, point Phase 1 at auth module"
+(auth module work is implemented and tested but NOT YET committed — see Next Recommended Action)
+Last push: SUCCESS (as of `96effff`)
 Remote: https://github.com/VikyHari/social-media-management.git
 
 ## Next Recommended Action
 
-Start Phase 1 with `src/modules/auth` (signup/login/session), since every later module (creator
-profile, AI conversations, social account connections) needs a logged-in user to attach data to.
+Commit and push the auth module (`src/modules/auth/**`, `src/app/api/auth/**`,
+`src/lib/{api,rate-limit,audit}.ts` + tests, `vitest.setup.ts`, `vitest.config.ts`), then start
+`src/modules/ai` (Claude client wrapper) — every subsequent module (creator onboarding, analytics
+interpretation, content generation) depends on it existing first.

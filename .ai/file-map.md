@@ -4,9 +4,11 @@ Inspect only the module you are working on.
 
 ## lib/ (shared infrastructure)
 
-Purpose: env, db client, crypto, helpers.
-Files: `src/lib/env.ts` (+test), `src/lib/db.ts`
-Status: env done; db in progress.
+Purpose: env, db client, JSON API helpers, rate limiting, audit log.
+Files: `env.ts`, `db.ts`, `api.ts` (parseJsonBody/apiErrorResponse), `rate-limit.ts` (in-memory,
+single-process only), `audit.ts` (recordAuditLog/getClientIp) — all under `src/lib/`, each with a
+`.test.ts`.
+Status: DONE. Reused by modules/auth; expected to be reused by every future module.
 
 ## app/ (routes)
 
@@ -15,9 +17,13 @@ Status: shell only.
 
 ## modules/auth/
 
-Purpose: users, sessions, login/logout, password hashing.
-DB: users, sessions (models exist in prisma/schema.prisma since Phase 0)
-Status: IN PROGRESS (Phase 1) — see .ai/current-task.md
+Purpose: signup, login, logout, session validation, password hashing.
+Files: `src/modules/auth/{password,tokens,schemas,cookie,repository,errors,public-user,service,index}.ts`
+Routes: `src/app/api/auth/{signup,login,logout,me}/route.ts`
+Shared helpers used: `src/lib/{api,rate-limit,audit}.ts`
+DB: users, sessions (models from prisma/schema.prisma, unchanged since Phase 0)
+Status: DONE — 36 tests passing (unit + integration against real DB + HTTP route tests), verified
+live via `npm run dev` (signup/me/logout/login/duplicate-signup all correct), audit log confirmed.
 
 ## modules/creator/
 
