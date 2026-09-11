@@ -21,6 +21,44 @@ Recurrence: LOW | MEDIUM | HIGH — why
 ## Resolved
 
 ```
+BUG #003 · 2026-09-11
+Problem:    Every GitHub Actions CI run had failed since the workflow was first added — every
+            single push this whole session (12 consecutive runs) — with
+            "src/app/layout.tsx#L9: Cannot find name 'LayoutProps'." This was invisible locally:
+            `npm run typecheck` passed every time it was run in this session.
+Module:     Tooling — package.json's typecheck script, .github/workflows/ci.yml.
+Root cause: `LayoutProps<"/">` is an ambient global type Next.js generates into `.next/types/`
+            (and `next-env.d.ts`) on `next dev`/`next build`/`next typegen` — it does not exist on
+            a fresh checkout until one of those has run once. CI runs `npm run typecheck`
+            (`tsc --noEmit`) before any build/dev step, so on every fresh CI checkout that type
+            was genuinely missing. Locally it always looked fine because `.next/` had already been
+            populated by the many `npm run dev`/`npm run build` calls made earlier in the same
+            working directory — a stale-cache blind spot that never affects a truly clean checkout,
+            which is exactly what CI always is. Never caught because `gh` CLI isn't installed and
+            GitHub Actions status was never checked this session — confirmed via the public
+            GitHub Actions REST API (unauthenticated, this repo is public) that all 12 runs going
+            back to the very first commit that included the workflow had failed the same way.
+Fix:        `package.json`'s `typecheck` script now runs `next typegen && tsc --noEmit` instead of
+            bare `tsc --noEmit` — `next typegen` is a lightweight Next.js 16 command that generates
+            exactly the route/layout types without a full build. Fixes it everywhere the script
+            runs (CI, a fresh clone, or `rm -rf .next` locally), not just in ci.yml. Also bumped
+            `actions/checkout@v4`→`v5` and `actions/setup-node@v4`→`v6` to clear a secondary,
+            non-blocking warning about the actions' own runtime (Node 24) — unrelated to the app's
+            own `node-version: 20` build target, which was left as-is.
+Files:      package.json, .github/workflows/ci.yml.
+Test:       Reproduced locally first (`rm -rf .next next-env.d.ts && npm run typecheck` failed
+            with the exact CI error), then confirmed the fix resolves it from that same clean
+            state, then ran the full CI-equivalent sequence (lint, typecheck, format:check, test,
+            build) from clean — all green. Pushed and confirmed the next GitHub Actions run
+            actually succeeded via the same API check used to find the problem.
+Status:     RESOLVED — 2026-09-11.
+Recurrence: LOW now that the fix lives in the npm script itself rather than only in CI config.
+            Process lesson: check actual CI status (the public Actions API works without `gh`)
+            periodically, not just local runs — a warm local `.next/` cache can hide exactly this
+            class of bug indefinitely.
+```
+
+```
 BUG #002 · 2026-09-11
 Problem:    `npm test` failed intermittently/order-dependently: some auth tests threw EnvError
             ("DATABASE_URL/SESSION_SECRET/TOKEN_ENCRYPTION_KEY: expected string, received
