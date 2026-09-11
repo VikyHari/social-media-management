@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import type { NextRequest, NextResponse } from "next/server";
 import { getEnv } from "@/lib/env";
 
@@ -26,4 +27,10 @@ export function clearSessionCookie(response: NextResponse): void {
 
 export function getSessionToken(request: NextRequest): string | undefined {
   return request.cookies.get(SESSION_COOKIE_NAME)?.value;
+}
+
+/** Same as getSessionToken, for Server Components/layouts that have no NextRequest to read. */
+export async function getSessionTokenFromCookieStore(): Promise<string | undefined> {
+  const store = await cookies();
+  return store.get(SESSION_COOKIE_NAME)?.value;
 }

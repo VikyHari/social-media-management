@@ -2,8 +2,8 @@
 
 ## Task
 
-Checkpoint after shipping Phase 2's full OAuth scaffolding (Instagram + Facebook + YouTube). No
-task in progress — awaiting user direction. See `.ai/project-state.md` "Next".
+Checkpoint after shipping the first UI (login, dashboard, onboarding chat). No task in progress —
+awaiting user direction. See `.ai/project-state.md` "Next" for the full candidate list.
 
 ## Type
 
@@ -11,20 +11,16 @@ Checkpoint
 
 ## Candidate next tasks (not started, pick one or redirect)
 
-1. **Metrics ingestion + sync scheduler** (last Phase 2 roadmap item): call each connected
-   account's insights/analytics API, write `PlatformMetric` rows. Needs at least one real
-   connected account to verify against — which needs real provider credentials first.
-2. **A first dashboard UI**: nothing user-facing exists beyond the Phase 0 placeholder home page.
-   Everything built (auth, AI, onboarding, integrations) is API-only. A login/signup screen +
-   onboarding chat UI + "connect your accounts" screen would make the product actually usable by a
-   human, not just by tests and curl.
-3. **Real provider credentials**: register a Meta app and a Google Cloud OAuth client so
-   modules/integrations can finally be live-verified end to end (currently 100% mock-tested).
-4. **Live-verify modules/ai + modules/creator**: if `ANTHROPIC_API_KEY` has been added to `.env`,
-   run a real onboarding interview via `npm run dev` for the first time.
+1. **Metrics ingestion + sync scheduler**: needs a real connected account to verify against.
+2. **Real provider credentials**: Meta app and/or Google Cloud OAuth client — unlocks live
+   verification of modules/integrations AND the dashboard's connect buttons.
+3. **Live-verify modules/ai + modules/creator**: check `.env` for `ANTHROPIC_API_KEY` first — the
+   user said they'd add it. If present, just use the onboarding chat UI already built.
+4. **More UI**: password reset, editing the profile without redoing the whole interview, a
+   settings page. Nothing for Phase 3/4 (analytics, content) since those phases don't exist yet.
 
 ## Constraints
 
-Whatever comes next, keep following the established pattern: build what doesn't need external
-credentials, test it thoroughly (real DB where relevant, mocked external calls), state plainly in
-`.ai/` what has and hasn't been verified against a real API — never claim untested code works.
+Same pattern as everything before it: build what doesn't need external credentials, test it
+thoroughly, state plainly in `.ai/` what has and hasn't been verified against a real API or a real
+browser — never claim untested code or UI works.

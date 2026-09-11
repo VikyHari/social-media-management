@@ -47,3 +47,16 @@ Format: `D-### · date · decision · why · consequences`
   the access token). Meta instead exchanges a short-lived token for a ~60-day long-lived one
   (D-011) — there's no refresh token in that flow. `ExchangedToken.refreshToken` stays optional to
   fit both shapes without provider-specific branching in `service.ts`.
+- **D-015 · 2026-09-11 · First UI verified live, not via component tests.** No jsdom/React
+  Testing Library setup exists (Vitest here runs `environment: "node"` for the API/service layer).
+  Rather than adding a whole second test runtime for one page's worth of UI, the login → dashboard
+  → onboarding → sign-out flow was verified by actually driving the running dev server (Claude's
+  Browser tool): real signup, real session cookie, real redirects, real graceful-degradation
+  states. Revisit (add jsdom + RTL) once UI complexity grows enough that live walkthroughs stop
+  being a proportionate check — don't add the infrastructure pre-emptively (Part 22).
+- **D-016 · 2026-09-11 · Server Components call service functions directly, not their own API
+  routes.** `/dashboard` calls `getProfile`/`getGoals`/`listAccounts` in-process rather than
+  `fetch`-ing `/api/creator/profile`/`/api/integrations` over HTTP. Client Components (forms,
+  connect/disconnect buttons) do use `fetch` against the API routes, since they run in the browser
+  and have no other way in. Standard Next.js App Router split — server-side data reads skip the
+  network hop; client-side mutations go through the same routes the tests already cover.

@@ -11,10 +11,26 @@ encryptSecret/decryptSecret via TOKEN_ENCRYPTION_KEY), `signed-token.ts` (generi
 short-lived opaque tokens, HMAC via SESSION_SECRET) — all under `src/lib/`, each with a `.test.ts`.
 Status: DONE. Reused across modules/auth, modules/integrations; expected to be reused further.
 
-## app/ (routes)
+## app/ (routes + first UI)
 
-Files: `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/api/health/route.ts`
-Status: shell only.
+API routes: see each module's section above (auth, creator, integrations) + `api/health`.
+Pages (all Server Component wrappers + a Client Component for the interactive part, matching
+Next.js App Router convention):
+
+- `src/app/page.tsx` — `/`, just redirects to `/dashboard` or `/login` by auth state.
+- `src/app/login/{page,login-form}.tsx` — combined signup/login form.
+- `src/app/dashboard/{page,sign-out-button,platform-section}.tsx` — the hub: greeting, profile
+  summary or onboarding CTA, goals, connect/disconnect per platform (honestly shows "not
+  configured yet" when a provider's env vars are unset, not a broken link).
+- `src/app/onboarding/{page,onboarding-chat}.tsx` — the interview chat UI.
+  Auth plumbing: `src/lib/auth-guard.ts` (`requireUser()`/`getOptionalUser()` — Server Component
+  page guards) + `src/modules/auth/cookie.ts`'s `getSessionTokenFromCookieStore()` (the
+  `next/headers` counterpart to route handlers' `getSessionToken(request)`).
+  Status: DONE — the first real, navigable UI. No component-test framework exists yet (Vitest here
+  is `environment: "node"`, no jsdom/RTL); verified instead via a live walkthrough through the actual
+  running app using the Browser tool (see decisions.md) — full signup → dashboard → onboarding →
+  sign-out → re-login flow confirmed, including the honest "not configured yet" / graceful-error
+  states where real credentials are missing.
 
 ## modules/auth/
 

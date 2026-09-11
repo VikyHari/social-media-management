@@ -2,6 +2,12 @@
 
 Legend: [x] done · [~] in progress · [ ] pending
 
+**UI note:** the phases below are backend/capability-oriented (per the master spec) and don't
+carry their own "build the UI" checkbox. A first real UI now exists — login/signup, a dashboard
+hub, and the onboarding chat — covering the Phase 1 + Phase 2 capabilities built so far. See
+`.ai/file-map.md`'s `## app/` section. Each later phase will likely want its own UI slice; note it
+in that phase's section (or here) rather than assuming "phase done" implies "UI for it exists".
+
 ## PHASE 0 — FOUNDATION
 
 - [x] Environment inspection

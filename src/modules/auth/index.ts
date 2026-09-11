@@ -2,6 +2,7 @@ export {
   SESSION_COOKIE_NAME,
   clearSessionCookie,
   getSessionToken,
+  getSessionTokenFromCookieStore,
   setSessionCookie,
 } from "./cookie";
 export { AuthError, type AuthErrorCode } from "./errors";
