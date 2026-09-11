@@ -2,51 +2,42 @@
 
 ## Task
 
-Phase 1, step 3: creator onboarding interview + creator profile (`src/modules/creator`).
+Transition point: Phase 1 core (auth, AI client, onboarding interview + profile) is done.
+Phase 2 (social OAuth) is next per the roadmap, but needs real Meta/Google app credentials the
+user hasn't provided yet — asking before guessing at OAuth specifics that would likely need
+rework. See `.ai/project-state.md` "Next".
 
 ## Type
 
-New feature
+Checkpoint / awaiting user input (credentials)
 
 ## Target module
 
-`src/modules/creator` (new). Consumes `src/modules/ai` (generateStructured, conversation APIs) and
-`src/modules/auth` (requires a logged-in user). Touches `prisma/schema.prisma` (new models).
+None in progress. Next real target once unblocked: `src/modules/integrations` (new) +
+`prisma/schema.prisma` (SocialAccount, PlatformMetric models).
 
-## Relevant files
+## What can proceed without credentials (safe to start any time)
 
-- src/modules/ai/index.ts (generateStructured, startConversation, addUserMessage/addAssistantMessage — reuse, don't reimplement)
-- src/modules/auth/index.ts (getCurrentUser/getSessionToken — reuse for route auth)
-- prisma/schema.prisma (add CreatorProfile, Goal models)
-- src/modules/creator/{interview,profile,repository,schemas,index}.ts (new)
-- src/app/api/creator/onboarding/route.ts (new — start/continue/finish the interview)
+- `prisma/schema.prisma`: `SocialAccount` (platform, external account id, encrypted tokens, scopes,
+  status, timestamps), `PlatformMetric` (platform, metric type, value, observed date — see
+  architecture.md's OBSERVED/CALCULATED/INFERRED/PREDICTED tagging).
+- `src/lib/crypto.ts`: AES-256-GCM encrypt/decrypt helpers using the already-provisioned
+  `TOKEN_ENCRYPTION_KEY` (D-0xx to record once written), with tests.
+- OAuth state-token generation/verification (CSRF protection for the callback), unit-testable
+  without a real provider.
 
-## Constraints
+## What needs the user first
 
-- Adaptive interview, not a fixed script: the AI chooses follow-up questions based on prior
-  answers (Part 23) — don't hardcode a linear question list. Topics to eventually cover: niche,
-  interests, skills, personality, content style, target audience, goals, platforms, equipment,
-  budget, time, experience, existing content, competitors admired, language, monetization goals.
-  Don't ask irrelevant questions once enough signal exists on a topic.
-- Store the raw interview as an AiConversation (purpose: "onboarding") via modules/ai — don't
-  build a second conversation-storage mechanism.
-- The derived CreatorProfile is structured (Part 24 fields) and produced via generateStructured,
-  not by regex/manual parsing of chat text.
-- The AI should challenge unrealistic input, not blindly agree (Part 41) — e.g. too many unrelated
-  niches, unrealistic goals — but this task only needs the interview + profile extraction to work;
-  deeper "challenge the user" reasoning can sharpen in a later pass once real usage exists.
-- Requires ANTHROPIC_API_KEY for real interview turns; build + unit tests (mocked AI client, same
-  pattern as src/modules/ai/structured.test.ts) must pass without a key. Live verification once a
-  key is available — see .ai/project-state.md "Next Recommended Action".
+- A Meta app (covers both Instagram and Facebook — Part 25) with `META_APP_ID`/`META_APP_SECRET`,
+  and the exact redirect URI it's configured with.
+- A Google Cloud OAuth client (YouTube Data API) with `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`
+  and its redirect URI.
+- Until these exist, authorization-URL construction and token exchange can be written against the
+  documented API shapes but cannot be live-verified — same honesty standard as modules/ai without
+  a Claude key: build it, test it against mocks, say plainly that it's unverified.
 
-## Expected result
+## Also pending (not blocking, cheap): `ANTHROPIC_API_KEY`
 
-A logged-in user can start an onboarding conversation, exchange several turns, and the system
-produces a structured CreatorProfile (+ Goal records) saved to the database. Lint/typecheck/tests/
-build pass without a real API key (mocked in tests).
-
-## Validation
-
-`npm run lint && npm run typecheck && npm test && npm run build`, plus new unit tests (mocked AI
-client for the interview logic) and integration tests (real DB) for profile persistence. Live
-end-to-end smoke test once ANTHROPIC_API_KEY is available.
+`modules/ai` and `modules/creator` are fully built and tested against a mocked Claude client but
+have never made a real API call. Add the key to `.env` (never commit it) whenever convenient, then
+a manual `npm run dev` + real onboarding run would be the first live verification.

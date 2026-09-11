@@ -27,9 +27,29 @@ live via `npm run dev` (signup/me/logout/login/duplicate-signup all correct), au
 
 ## modules/creator/
 
-Purpose: onboarding interview, creator profile, goals.
-DB: creator_profiles, goals
-Status: PENDING (Phase 1)
+Purpose: adaptive onboarding interview + the structured creator profile and goals it produces.
+Files: `prompts.ts` (interview + extraction system prompts), `schemas.ts` (Zod:
+`creatorProfileExtractionSchema` incl. nested `goals`, `interviewTurnSchema`), `interview.ts`
+(`startInterview`/`continueInterview` — orchestrates modules/ai; the interview loop forces
+`interviewTurnSchema` each turn, and once the model sets `readyToExtractProfile`, immediately
+runs a second forced-tool call against the full transcript to extract the profile), `repository.ts`
+(`upsertProfile` — re-running onboarding updates the same row, doesn't duplicate), `profile.ts`
+(read-only getProfile/getGoals), `errors.ts` (CONVERSATION_NOT_FOUND/FORBIDDEN — ownership checked
+on every continue call), `index.ts`.
+Routes: `POST /api/creator/onboarding` (start), `PATCH /api/creator/onboarding` (continue, body:
+`{conversationId, message}`), `GET /api/creator/profile`. All require an authenticated session
+(reuses `modules/auth`'s `getCurrentUser`/`getSessionToken`).
+DB: creator_profiles, goals (migration `20260911075752_creator_intelligence`). The raw interview
+transcript itself lives in `modules/ai`'s `ai_conversations`/`ai_messages` (purpose: "onboarding"),
+linked back via `creator_profiles.source_conversation_id` — no separate transcript storage built.
+Status: DONE — 8 new tests (interview logic with a mocked AI client + real DB: happy path,
+extraction + upsert-on-rerun, ownership rejection, missing-conversation rejection; plus an HTTP
+route test wiring auth + creator together). 53 tests total in the project, run 3x for determinism.
+Build succeeds. **Not live-tested against the real Claude API** — same `ANTHROPIC_API_KEY` gap as
+modules/ai; see .ai/project-state.md.
+Deliberately not built yet: "Niche analysis" / "Audience analysis" as dedicated features (roadmap) —
+the interview only lightly challenges scattered/unrealistic niches inline (Part 41); a real
+analysis pass wants either platform data (Phase 2/3) or its own task.
 
 ## modules/ai/
 

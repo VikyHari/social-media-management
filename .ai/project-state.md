@@ -4,86 +4,96 @@
 
 ## Phase
 
-PHASE 1 — CREATOR INTELLIGENCE (auth done, AI client module done, onboarding interview next)
+PHASE 1 — CREATOR INTELLIGENCE (auth, AI client, onboarding interview + profile all done)
 
 ## Current Sprint
 
-Phase 1: authentication (done) → AI client module (done) → creator onboarding interview → creator
-profile.
+Phase 1 core is functionally complete. Remaining Phase 1 items (niche/audience analysis as
+dedicated features) are lower priority than starting Phase 2 (social connection) — see Next.
 
 ## Completed
 
 - **Phase 0 (foundation):** Next.js 16 + TS + Tailwind v4 + ESLint 9 + Prettier scaffold; PostgreSQL
-  16 via Docker (port 5440) + Prisma 7; Zod-validated env; GitHub Actions CI; `.ai/` project memory;
-  pushed to `origin/main`.
+  16 via Docker (port 5440) + Prisma 7; Zod-validated env; GitHub Actions CI; `.ai/` project memory.
 - **`src/modules/auth`:** signup, login, logout, session validation. bcrypt hashing, HMAC-hashed
   opaque session tokens, DB sessions (30-day expiry), httpOnly/Lax cookie, rate limiting, audit log.
-  Routes: `POST /api/auth/{signup,login,logout}`, `GET /api/auth/me`. 36 tests; verified live via
-  `npm run dev` (full signup/login/logout/me flow, cookie flags, audit rows all confirmed).
+  Routes: `POST /api/auth/{signup,login,logout}`, `GET /api/auth/me`.
 - **`src/modules/ai`:** the only module allowed to call `@anthropic-ai/sdk` directly (D-005).
-  - `client.ts` — lazy Anthropic client singleton (mirrors `src/lib/db.ts`); throws a clear
-    `AiError("MISSING_API_KEY")` at first real use if `ANTHROPIC_API_KEY` is unset (it is, in this
-    dev environment — see Known Issues below).
-  - `structured.ts` — `generateStructured<T>()`: converts a Zod schema to a JSON schema
-    (`z.toJSONSchema`), forces Claude to call a matching tool, Zod-validates the result, and does
-    one corrective retry (via a `tool_result` block explaining what was wrong) before throwing
-    `AiError("INVALID_OUTPUT")`. This is how every future module must get structured data out of
-    Claude — never parse free-form text as JSON (D-009).
-  - `pricing.ts` — `estimateCostUsd()` returns `null` until real per-model USD rates are filled in;
-    no invented numbers presented as fact (D-010). Token counts are always the real API numbers.
-  - `conversation.ts`/`repository.ts` — generic multi-turn conversation storage (`AiConversation`,
-    `AiMessage`), tagged by `purpose` (e.g. "onboarding"), reusable by any AI feature.
-  - `usage.ts` — logs every call to `AiUsageLog` (tokens, latency, cost estimate); never throws.
-  - New Prisma models (migration `20260911065727_ai_engine`): `AiConversation`, `AiMessage`,
-    `AiUsageLog`. `ai_memory` (Part 62, long-term creator understanding) deliberately not built yet
-    — belongs with `modules/creator`, which will be its first writer/reader.
-  - 9 new tests (pricing unit test; structured-output unit tests against a mocked client covering
-    success/retry-then-success/fail-twice/no-tool-call/transport-error; conversation + usage
-    integration tests against the real DB) — 45 tests total in the project, run 3x for determinism.
-  - No API routes yet — this is infrastructure for `modules/creator` (next) to consume.
-  - **Not live-tested against the real Claude API** — no `ANTHROPIC_API_KEY` configured in this
-    environment. Unit tests use a mocked client instead; see Known Issues.
+  `generateStructured<T>()` forces a Zod-schema-shaped tool call, validates, retries once on
+  failure (D-009). `pricing.ts` never fabricates cost numbers — returns null until real rates are
+  configured (D-010). Generic `AiConversation`/`AiMessage` storage (tagged by `purpose`) and
+  `AiUsageLog` usage tracking, reusable by any feature that talks to Claude.
+- **`src/modules/creator`:** adaptive onboarding interview (Part 23) built on `modules/ai`.
+  - `interview.ts` — each turn forces `interviewTurnSchema` (next question + a
+    `readyToExtractProfile` flag the model sets itself); once ready, a second forced-tool call
+    extracts a full `creatorProfileExtractionSchema` (Part 24 fields + 1-8 goals) from the whole
+    transcript. Ownership is checked on every continue call (a conversation only answers to the
+    user who started it). Re-running onboarding **upserts** the existing profile rather than
+    duplicating it.
+  - New Prisma models (migration `20260911075752_creator_intelligence`): `CreatorProfile` (1:1
+    with User, linked back to its source `AiConversation` for provenance), `Goal`.
+  - Routes: `POST /api/creator/onboarding` (start), `PATCH /api/creator/onboarding` (continue),
+    `GET /api/creator/profile`.
+  - The interview's system prompt already does a light version of Part 41 ("AI should challenge
+    the user") — it's told to push back on scattered niches or unrealistic goals rather than just
+    agreeing. A dedicated "niche analysis" / "audience analysis" feature is NOT built (see Next).
+- **Testing:** 53 tests across 12 files (unit + real-DB integration + HTTP route tests), run 3x for
+  determinism every time. `npm run build` succeeds; all new routes register correctly.
+- **Fixed BUG #002** (Vitest env loading / cross-test-file `process.env` pollution) — see
+  `.ai/known-issues.md`.
 
 ## In Progress
 
-(none — AI client module fully done)
+(none — creator onboarding module fully done)
 
 ## Next
 
-`src/modules/creator`: adaptive onboarding interview (uses `modules/ai`'s `generateStructured` +
-`conversation` APIs, `purpose: "onboarding"`) that progressively asks about niche, interests,
-skills, personality, content style, audience, goals, platforms, equipment, budget, time,
-experience, existing content, competitors, language, monetization (Part 23) — the AI should choose
-follow-ups dynamically, not ask a fixed script. Produces a structured `CreatorProfile` (Part 24) +
-`Goal` records. New Prisma models needed: `CreatorProfile`, `Goal`. Requires a logged-in user
-(`modules/auth`). Route(s) to start/continue/finish the interview under `/api/creator/onboarding`.
+Two independent directions, pick by priority (Part 17: core user journey > nice-to-have):
+
+1. **Phase 2 — Social connection** (Instagram/Facebook/YouTube OAuth + metrics ingestion). This is
+   the next major capability the product needs — analytics/content phases depend on real account
+   data existing. Needs `META_APP_ID`/`META_APP_SECRET` (Instagram+Facebook, one Meta app) and
+   `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (YouTube) — all currently blank in `.env`. Setting up
+   each requires the user to register a developer app on Meta/Google (Part 67: platform requires
+   manual developer approval) — this **will need to be done by the user**, not something I can
+   provision. I can build the OAuth flow, token storage (encrypted, `TOKEN_ENCRYPTION_KEY` already
+   provisioned since Phase 0), and ingestion scaffolding without real credentials, the same way
+   `modules/ai` was built and tested without a real Claude key — but nothing will actually connect
+   until real app credentials exist.
+2. **Live-verify `modules/ai` + `modules/creator`** once `ANTHROPIC_API_KEY` is added to `.env`.
+   Everything is unit-tested against a mocked client; a real end-to-end onboarding run has never
+   happened. Cheap to do (one `.env` line + a manual `npm run dev` smoke test) whenever a key is
+   available — does not block other work.
 
 ## Known Issues
 
-**`ANTHROPIC_API_KEY` is not set.** AI features are built and unit-tested (mocked client) but have
-never made a real call to Claude. The onboarding interview (next task) will not actually function
-end-to-end without a real key. Not logged as a bug — this is expected/pending user action, not a
-defect. See "Next Recommended Action".
+None open. See `.ai/known-issues.md` for resolved history (BUG #001 git push access, BUG #002
+Vitest env loading / test cross-contamination).
 
-None open in `.ai/known-issues.md`. See that file for resolved history (BUG #001 git push access,
-BUG #002 Vitest env loading / test cross-contamination).
+**Still true, not a bug:** `ANTHROPIC_API_KEY` is unset — `modules/ai` and `modules/creator` are
+built and thoroughly unit/integration-tested with a mocked Claude client, but have never made a
+real API call.
 
 ## Last Tested
 
-2026-09-11 — full suite: format:check, lint, typecheck, `npm test` (45/45, run 3x for determinism),
-`npm run build`. AI module verified only via mocked-client unit tests, not a live API call.
+2026-09-11 — full suite: format:check, lint, typecheck, `npm test` (53/53, run 3x for determinism),
+`npm run build`. Docker Desktop was not running at the start of this session (needed a manual
+restart before migrations/DB tests could run) — if a future session hits DB connection errors,
+check `docker compose ps` first.
 
 ## Git
 
 Branch: main
-Last commit: `6705c17` "feat: add AI client module (Claude wrapper, structured output, usage log)"
-Last push: SUCCESS — origin/main up to date with local main.
+Last commit: `e22f911` "docs: close AI client module task, point current-task at creator onboarding"
+(creator onboarding module is implemented and tested but NOT YET committed — see Next Recommended Action)
+Last push: SUCCESS (as of `e22f911`)
 Remote: https://github.com/VikyHari/social-media-management.git
 
 ## Next Recommended Action
 
-1. Get an `ANTHROPIC_API_KEY` into `.env` (never commit it) so `modules/ai` — and the onboarding
-   interview about to be built on it — can be live-verified, not just mocked-tested. Not blocking:
-   `src/modules/creator` can be built and tested the same way `modules/ai` was (mocked client), and
-   switch to a live smoke test once a key is available.
-2. Start `src/modules/creator` (onboarding interview + creator profile). See `.ai/current-task.md`.
+1. Commit and push the creator onboarding module (`src/modules/creator/**`,
+   `src/app/api/creator/**` + tests, `prisma/schema.prisma` +
+   `prisma/migrations/20260911075752_creator_intelligence/`).
+2. Decide between the two "Next" directions above, or do both in parallel: start Phase 2 (OAuth
+   scaffolding, no real credentials needed yet) while asking the user for an `ANTHROPIC_API_KEY`
+   and, when ready to actually build Phase 2 end-to-end, Meta + Google OAuth app credentials.

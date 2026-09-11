@@ -20,11 +20,11 @@ Legend: [x] done · [~] in progress · [ ] pending
 
 - [x] Authentication (email + password, DB sessions)
 - [x] AI client module (Claude, structured output, cost logging)
-- [ ] Onboarding interview (adaptive questions)
-- [ ] Creator profile (structured, AI-maintained)
-- [ ] Goals
-- [ ] Niche analysis
-- [ ] Audience analysis
+- [x] Onboarding interview (adaptive questions)
+- [x] Creator profile (structured, AI-maintained)
+- [x] Goals
+- [ ] Niche analysis (dedicated feature — interview only lightly challenges scattered/unrealistic niches inline, Part 41)
+- [ ] Audience analysis (needs either real platform data (Phase 2/3) or a dedicated qualitative pass)
 
 ## PHASE 2 — SOCIAL CONNECTION
 

@@ -26,6 +26,8 @@ model User {
   auditLogs       AuditLog[]
   aiConversations AiConversation[]
   aiUsageLogs     AiUsageLog[]
+  creatorProfile  CreatorProfile?
+  goals           Goal[]
 
   @@map("users")
 }
@@ -79,8 +81,9 @@ model AiConversation {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  messages  AiMessage[]
-  usageLogs AiUsageLog[]
+  messages       AiMessage[]
+  usageLogs      AiUsageLog[]
+  creatorProfile CreatorProfile?
 
   @@index([userId, purpose])
   @@map("ai_conversations")
@@ -119,4 +122,72 @@ model AiUsageLog {
 
   @@index([userId, createdAt])
   @@map("ai_usage_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Creator intelligence (Phase 1) — what the AI has learned about the creator
+// from the onboarding interview. One profile per user; it only comes into
+// existence once the interview concludes (no separate "draft" status: the
+// AiConversation itself is the in-progress state). The AI updates it over
+// time as it learns more (Part 24/62) — this is the current snapshot, not a
+// history; add a revision table later if diffing profile changes matters.
+// ---------------------------------------------------------------------------
+
+model CreatorProfile {
+  id     String @id @default(uuid())
+  userId String @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  primaryNiche    String   @map("primary_niche")
+  secondaryNiches String[] @map("secondary_niches")
+  interests       String[]
+  skills          String[]
+  targetAudience  String   @map("target_audience")
+  platforms       String[]
+  contentFormats  String[] @map("content_formats")
+  language        String
+  strengths       String[]
+  weaknesses      String[]
+  equipment       String[]
+  budget          String
+  timeAvailable   String   @map("time_available")
+  experienceLevel String   @map("experience_level")
+  existingContent String?  @map("existing_content")
+  competitors     String[]
+  monetizationGoals String @map("monetization_goals")
+  brandPositioning  String @map("brand_positioning")
+
+  /// Initial AI-suggested starting point (e.g. [{name, weightPercent, rationale}]).
+  /// Superseded by performance-driven pillars once Phase 4 analytics exist (Part 29).
+  contentPillars Json?   @map("content_pillars")
+  rawNotes       String? @map("raw_notes")
+
+  /// The onboarding AiConversation this profile was derived from, for provenance.
+  sourceConversationId String?         @unique @map("source_conversation_id")
+  sourceConversation   AiConversation? @relation(fields: [sourceConversationId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("creator_profiles")
+}
+
+model Goal {
+  id               String          @id @default(uuid())
+  userId           String          @map("user_id")
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creatorProfileId String?         @map("creator_profile_id")
+
+  description String
+  category    String?
+  targetValue String?   @map("target_value")
+  targetDate  DateTime? @map("target_date")
+  /// "active" | "achieved" | "abandoned" — enforced by Zod at the input boundary.
+  status      String    @default("active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, status])
+  @@map("goals")
 }
